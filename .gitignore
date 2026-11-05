@@ -1,0 +1,27 @@
+# Build Rust
+rust_studio/target/
+
+# Exécutables compilés (se régénèrent avec cargo build --release)
+*.exe
+
+# État live & préférences (réécrits en continu par la régie)
+live_state.json
+studio_preferences.json
+rust_studio/live_state.json
+rust_studio/studio_preferences.json
+
+# Captures de test & logs
+test_screen*.png
+*.log
+
+# Sauvegardes & scripts temporaires
+*.bak*
+scratch/
+check_steps*.py
+
+# Python
+__pycache__/
+*.pyc
+
+# Vidéos locales (trop lourdes pour Git)
+videos/

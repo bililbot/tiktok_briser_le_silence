@@ -1,0 +1,1893 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STUDIO_LIVE_TIKTOK</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Permanent+Marker&family=Space+Grotesk:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --branch-col: #e06d2b;
+            --accent-col: #cbd5e1;
+            --music-font-scale: 1;
+            /* Facteur de taille qui s'adapte automatiquement à la hauteur ou largeur de l'écran */
+            --scale-unit: min(1vh, 0.5625vw);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            background: #000000;
+            color: #f1f5f9;
+            font-family: 'Space Grotesk', sans-serif;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Scène 16:9 Panoramique Complète : Remplissage 100% de l'écran */
+        .stage-9-16 {
+            position: relative;
+            height: 100vh;
+            width: 100vw;
+            max-width: none;
+            background: #121318;
+            overflow: hidden;
+        }
+
+        .stage-9-16 .bottom-adaptive-bar {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .stage-9-16 .music-card {
+            max-width: 950px;
+            margin: 0 auto;
+        }
+
+        .stage-9-16 .emerg-panel {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .stage-9-16 .pinned-card {
+            max-width: 950px;
+            margin: 0 auto;
+        }
+
+        .stage-9-16 .tw-banner {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .wall-bg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center center;
+            z-index: 1;
+            pointer-events: none;
+            transition: filter 0.35s ease;
+        }
+
+        /* =========================================================
+           BARRE D'OUTILS FLOTTANTE (VISIBLE UNIQUEMENT AU SURVOL SOURIS)
+           ========================================================= */
+        .hover-toolbar {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            z-index: 999;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        body:hover .hover-toolbar {
+            opacity: 1;
+        }
+        .tool-btn {
+            background: rgba(15, 17, 23, 0.94);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #e2e8f0;
+            font-family: inherit;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .tool-btn:hover {
+            background: var(--branch-col);
+            color: #fff;
+        }
+
+        /* =========================================================
+           SYSTÈME D'ÉLÉMENTS DÉPLAÇABLES & REDIMENSIONNABLES À LA SOURIS
+           ========================================================= */
+        .draggable-widget {
+            position: absolute;
+            z-index: 20;
+            cursor: grab;
+        }
+        .draggable-widget:active {
+            cursor: grabbing;
+        }
+        body:hover .draggable-widget:hover {
+            outline: 2px dashed rgba(148, 163, 184, 0.75);
+            outline-offset: 2px;
+        }
+
+        .resize-handle {
+            position: absolute;
+            z-index: 45;
+            opacity: 0;
+            transition: opacity 0.2s, background 0.15s;
+        }
+        body:hover .draggable-widget:hover .resize-handle {
+            opacity: 0.65;
+        }
+        .resize-handle:hover, .resize-handle.active {
+            opacity: 1 !important;
+        }
+
+        /* Coin Diagonale Bas-Droit */
+        .handle-se {
+            right: 0;
+            bottom: 0;
+            width: 22px;
+            height: 22px;
+            cursor: nwse-resize;
+            background: linear-gradient(135deg, transparent 40%, var(--branch-col) 40%);
+            border-bottom-right-radius: 6px;
+        }
+
+        /* Bord Droit (Largeur Droite <-> Gauche) */
+        .handle-e {
+            right: 0;
+            top: 10px;
+            bottom: 22px;
+            width: 10px;
+            cursor: ew-resize;
+            border-right: 3px solid var(--branch-col);
+        }
+
+        /* Bord Bas (Hauteur Haut <-> Bas) */
+        .handle-s {
+            bottom: 0;
+            left: 10px;
+            right: 22px;
+            height: 10px;
+            cursor: ns-resize;
+            border-bottom: 3px solid var(--branch-col);
+        }
+
+        /* Bord Gauche (Largeur Gauche <-> Droite) */
+        .handle-w {
+            left: 0;
+            top: 10px;
+            bottom: 10px;
+            width: 10px;
+            cursor: ew-resize;
+            border-left: 3px solid var(--branch-col);
+        }
+
+        /* =========================================================
+           1. LECTEUR MUSIQUE HAUTE VISIBILITÉ (DOUX POUR LES YEUX)
+           ========================================================= */
+        #musicWidget {
+            left: 18%;
+            top: 74%;
+            width: 64%;
+        }
+
+        .music-card {
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 12, 16, 0.94);
+            border: 2px solid rgba(255, 255, 255, 0.16);
+            border-left: 6px solid var(--branch-col);
+            border-radius: 9px;
+            padding: 9px 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.92);
+        }
+
+        .music-card.glass-minimal {
+            background: rgba(10, 12, 16, 0.76);
+            backdrop-filter: blur(10px);
+        }
+
+        .hud-cover-wrap {
+            width: clamp(65px, 8.5vh, 105px);
+            height: clamp(65px, 8.5vh, 105px);
+            border-radius: 7px;
+            border: 2px solid var(--branch-col);
+            background: #14151c;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.85);
+        }
+
+        .hud-cover-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
+            pointer-events: none;
+        }
+        .hud-cover-img.loaded {
+            display: block;
+        }
+
+        .hud-vinyl-fallback {
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            border: 3px solid var(--branch-col);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .hud-vinyl-fallback::after {
+            content: '';
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--branch-col);
+        }
+
+        .hud-text-col {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .title-marquee-box {
+            width: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+            position: relative;
+        }
+
+        .hud-line1 {
+            display: inline-block;
+            font-family: 'Anton', Impact, sans-serif;
+            font-size: clamp(1.2rem, calc(2.4vh * var(--music-font-scale)), 2.3rem);
+            letter-spacing: 1px;
+            color: #f8fafc;
+            line-height: 1.08;
+            text-transform: uppercase;
+            text-shadow:
+                -2px -2px 0 #000,
+                 2px -2px 0 #000,
+                -2px  2px 0 #000,
+                 2px  2px 0 #000,
+                 0px  3px 6px rgba(0,0,0,0.95);
+        }
+
+        .hud-line1.scrolling {
+            padding-right: 50px;
+            animation: scrollTitle 11s linear infinite;
+        }
+
+        @keyframes scrollTitle {
+            0%, 15% { transform: translateX(0%); }
+            85%, 100% { transform: translateX(-45%); }
+        }
+
+        /* ARTISTE : COULEUR DOUCE HARMONISÉE (SANS JAUNE AGRESSIF) */
+        .hud-line2 {
+            font-size: clamp(0.9rem, calc(1.5vh * var(--music-font-scale)), 1.45rem);
+            font-weight: 800;
+            color: var(--accent-col);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            letter-spacing: 0.4px;
+            text-shadow: 1.5px 1.5px 3px #000;
+        }
+
+        .hud-line3 {
+            font-size: clamp(0.72rem, calc(1.2vh * var(--music-font-scale)), 1.15rem);
+            font-weight: 700;
+            color: #94a3b8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        #spectrumCanvas {
+            width: 100%;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 4px;
+            margin-top: 3px;
+            display: block;
+        }
+
+        /* =========================================================
+           2. GRAND PANNEAU DES NUMÉROS D'URGENCE & D'ÉCOUTE (VSS)
+              (Palette sombre reposante Violet profond & Blanc doux — Zéro jaune agressif)
+           ========================================================= */
+        #emergencyWidget {
+            left: 3%;
+            top: 20.5%;
+            width: 94%;
+            display: none;
+            z-index: 24;
+            transition: left 0.3s ease, top 0.3s ease, width 0.3s ease;
+        }
+
+        /* Format Rectangle Vertical (Gauche / Droite) en 16:9 */
+        #emergencyWidget.emerg-pos-left {
+            left: 2% !important;
+            right: auto !important;
+            top: 12% !important;
+            width: 26% !important;
+            min-width: 290px !important;
+            max-width: 380px !important;
+        }
+        #emergencyWidget.emerg-pos-right {
+            left: auto !important;
+            right: 2% !important;
+            top: 12% !important;
+            width: 26% !important;
+            min-width: 290px !important;
+            max-width: 380px !important;
+        }
+        #emergencyWidget.emerg-pos-top {
+            left: 3% !important;
+            right: auto !important;
+            top: 18% !important;
+            width: 94% !important;
+            max-width: none !important;
+        }
+
+        #emergencyWidget.emerg-col-layout .emerg-grid {
+            grid-template-columns: 1fr !important;
+            gap: 5px !important;
+        }
+        #emergencyWidget.emerg-col-layout .emerg-item {
+            padding: 5px 8px !important;
+            min-height: 38px !important;
+        }
+
+        .emerg-panel {
+            width: 100%;
+            background: rgba(13, 12, 20, 0.95);
+            border: 2.5px solid #7c3aed;
+            border-radius: 9px;
+            padding: 7px 9px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.95);
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .emerg-header {
+            background: linear-gradient(90deg, #2e1065, #1e1b4b);
+            border: 1px solid rgba(167, 139, 250, 0.4);
+            border-radius: 5px;
+            padding: 4px 8px;
+            font-family: 'Anton', sans-serif;
+            font-size: clamp(0.85rem, 1.4vh, 1.25rem);
+            letter-spacing: 1px;
+            color: #e2e8f0;
+            text-align: center;
+            text-transform: uppercase;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        .emerg-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+        }
+
+        .emerg-item {
+            background: rgba(22, 20, 34, 0.96);
+            border: 1px solid rgba(139, 92, 246, 0.35);
+            border-left: 4px solid #8b5cf6;
+            border-radius: 5px;
+            padding: 3px 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 32px;
+            transition: all 0.25s ease;
+        }
+
+        .emerg-item.zoom-focus {
+            background: linear-gradient(90deg, #3b0764, #1e1b4b);
+            border-color: #a78bfa;
+            transform: scale(1.02);
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
+        }
+
+        .emerg-badge-num {
+            background: #4c1d95;
+            border: 1px solid #a78bfa;
+            color: #ffffff;
+            font-family: 'Anton', Impact, sans-serif;
+            font-size: clamp(0.85rem, 1.25vh, 1.1rem);
+            padding: 1px 6px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+            flex-shrink: 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.6);
+        }
+
+        .emerg-desc {
+            font-size: clamp(0.66rem, 0.92vh, 0.82rem);
+            font-weight: 700;
+            color: #e2e8f0;
+            text-shadow: 1px 1px 2px #000;
+            line-height: 1.1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* =========================================================
+           3. ÉCRAN VIDÉO TÉMOIGNAGES & REPORTAGES
+           ========================================================= */
+        #videoWidget {
+            left: 25%;
+            top: 44%;
+            width: 50%;
+            min-width: 75px;
+            display: none;
+            z-index: 25;
+        }
+
+        .stage-9-16.video-mode-on #videoWidget {
+            display: block;
+        }
+
+        .video-monitor-box {
+            width: 100%;
+            background: rgba(11, 12, 16, 0.96);
+            border: 2px solid var(--branch-col);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.95);
+            border-radius: 7px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .video-monitor-header {
+            background: linear-gradient(90deg, #14151c, #1f212d);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 3px 7px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.62rem;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: #e2e8f0;
+            cursor: grab;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        #videoWidget.mini-size .video-monitor-header {
+            padding: 2px 5px;
+            font-size: 0.5rem;
+        }
+        #videoWidget.mini-size .anti-detect-watermark {
+            display: none;
+        }
+
+        .rec-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: #e2e8f0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .rec-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #ef4444;
+            box-shadow: 0 0 6px #ef4444;
+            flex-shrink: 0;
+            animation: blinkRec 1.2s infinite;
+        }
+        @keyframes blinkRec {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .video-viewport {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background: #000;
+            overflow: hidden;
+        }
+
+        .video-viewport video,
+        .video-viewport iframe {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border: none;
+            display: block;
+        }
+
+        .anti-detect-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: 
+                repeating-linear-gradient(
+                    0deg,
+                    rgba(255, 255, 255, 0.015) 0px,
+                    rgba(255, 255, 255, 0.015) 1px,
+                    transparent 1px,
+                    transparent 3px
+                ),
+                radial-gradient(circle at center, transparent 60%, rgba(0, 0, 0, 0.32) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            display: none;
+        }
+        .anti-detect-overlay.enabled {
+            display: block;
+        }
+
+        .anti-detect-watermark {
+            position: absolute;
+            bottom: 4px;
+            right: 6px;
+            background: rgba(10, 10, 14, 0.82);
+            border-left: 3px solid var(--branch-col);
+            padding: 1px 6px;
+            font-family: 'Anton', sans-serif;
+            font-size: 0.56rem;
+            letter-spacing: 0.8px;
+            color: #cbd5e1;
+            pointer-events: none;
+        }
+
+        /* =========================================================
+           4. BARRE D'INFOS TOUT EN BAS
+           ========================================================= */
+        #footerWidget {
+            left: 3%;
+            bottom: 24px;
+            top: auto;
+            width: 94%;
+        }
+
+        .bottom-adaptive-bar {
+            width: 100%;
+            background: rgba(10, 12, 16, 0.96);
+            border: 2px solid rgba(255, 255, 255, 0.22);
+            border-left: 6px solid var(--branch-col);
+            border-radius: 8px;
+            padding: 8px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.98);
+        }
+
+        .bottom-branch-tag {
+            font-family: 'Anton', Impact, sans-serif;
+            font-size: clamp(0.95rem, 1.6vh, 1.35rem);
+            letter-spacing: 1.2px;
+            color: #ffffff;
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+
+        .bottom-help-text {
+            font-size: clamp(0.85rem, 1.4vh, 1.2rem);
+            font-weight: 800;
+            color: #f1f5f9;
+            text-shadow: 1px 1px 3px #000;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 72%;
+        }
+        /* 5. BANDEAU TRIGGER WARNING (SUJET SENSIBLE) */
+        #twWidget {
+            left: 3%;
+            top: 2%;
+            width: 94%;
+            display: none;
+        }
+        .tw-banner {
+            background: rgba(185, 28, 28, 0.95);
+            border: 2px solid #f87171;
+            border-radius: 8px;
+            padding: 8px 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 20px rgba(220, 38, 38, 0.6);
+            animation: pulse-border 2s infinite ease-in-out;
+        }
+        .tw-badge {
+            background: #fff;
+            color: #991b1b;
+            font-family: 'Anton', sans-serif;
+            font-size: clamp(0.75rem, 1.25vh, 1.15rem);
+            padding: 2px 8px;
+            border-radius: 4px;
+            letter-spacing: 1px;
+            white-space: nowrap;
+        }
+        .tw-text {
+            color: #fff;
+            font-weight: 700;
+            font-size: clamp(0.75rem, 1.3vh, 1.15rem);
+            letter-spacing: 0.5px;
+        }
+        @keyframes pulse-border {
+            0%, 100% { border-color: #f87171; }
+            50% { border-color: #ffffff; }
+        }
+
+        /* 6. COMMENTAIRE ÉPINGLÉ DU CHAT TIKTOK */
+        #pinnedCommentWidget {
+            left: 5%;
+            top: 72%;
+            width: 90%;
+            display: none;
+        }
+        .pinned-card {
+            background: rgba(18, 16, 28, 0.96);
+            border: 2px solid #8b5cf6;
+            border-left: 6px solid #a78bfa;
+            border-radius: 10px;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(8px);
+        }
+        .pinned-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 2px solid #a78bfa;
+            object-fit: cover;
+            background: #2e1065;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+        }
+        .pinned-info {
+            flex: 1;
+            overflow: hidden;
+        }
+        .pinned-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 2px;
+        }
+        .pinned-tag {
+            background: #7c3aed;
+            color: #fff;
+            font-size: 0.65rem;
+            font-weight: 800;
+            padding: 1px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .pinned-author {
+            color: #d8b4fe;
+            font-weight: 800;
+            font-size: 0.88rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pinned-msg {
+            color: #f8fafc;
+            font-size: clamp(0.85rem, 1.45vh, 1.3rem);
+            font-weight: 700;
+            line-height: 1.25;
+            word-break: break-word;
+        }
+
+        /* 7. ENCART TEXTE LIBRE SUR LE LIVE */
+        #customBoxWidget {
+            left: 20%;
+            top: 25%;
+            width: 60%;
+            min-width: 260px;
+            display: none;
+            z-index: 28;
+        }
+        .custom-box-card {
+            width: 100%;
+            background: rgba(18, 20, 32, 0.92);
+            border: 2px solid #a855f7;
+            border-radius: 10px;
+            padding: 12px 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            transition: all 0.2s ease;
+        }
+        .custom-box-title {
+            font-family: 'Anton', sans-serif;
+            font-size: 1.15rem;
+            letter-spacing: 1px;
+            color: #d8b4fe;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            text-shadow: 1px 1px 2px #000;
+        }
+        .custom-box-text {
+            color: #ffffff;
+            font-size: 1.25rem;
+            font-weight: 700;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: break-word;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        /* 8. OVERLAY VIDÉO JINGLE */
+        .jingle-video-overlay {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 65%;
+            max-height: 65%;
+            border: 3px solid #a855f7;
+            border-radius: 12px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.95);
+            display: none;
+            z-index: 50;
+            background: #000;
+        }
+
+        /* 9. DÉDICACE MORCEAU & WIDGET DE VOTE MUSICAL */
+        .hud-dedicace-badge {
+            margin-top: 4px;
+            font-size: 0.78rem;
+            font-weight: 800;
+            color: #facc15;
+            background: rgba(30, 27, 75, 0.88);
+            border: 1px solid rgba(250, 204, 21, 0.5);
+            padding: 2px 8px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            text-shadow: 1px 1px 2px #000;
+            box-shadow: 0 0 8px rgba(250, 204, 21, 0.25);
+            width: fit-content;
+        }
+
+        #songVoteWidget {
+            left: 32%;
+            top: 24%;
+            width: 400px;
+            z-index: 35;
+        }
+
+        .song-vote-card {
+            width: 100%;
+            background: rgba(14, 16, 26, 0.95);
+            border: 2px solid #a855f7;
+            border-radius: 10px;
+            padding: 10px 14px;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.95);
+            backdrop-filter: blur(10px);
+        }
+
+        .song-vote-header {
+            font-family: 'Anton', sans-serif;
+            font-size: 1.05rem;
+            color: #d8b4fe;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-align: center;
+            text-shadow: 1px 1px 2px #000;
+            border-bottom: 1px solid rgba(168, 85, 247, 0.3);
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+        }
+
+        .song-vote-title {
+            font-size: 0.82rem;
+            color: #93c5fd;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 8px;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        .song-vote-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .song-vote-row {
+            background: rgba(22, 26, 42, 0.9);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 6px;
+            padding: 4px 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .song-vote-row.winner-row {
+            border: 2px solid #facc15;
+            box-shadow: 0 0 14px rgba(250, 204, 21, 0.5);
+        }
+
+        .song-vote-bar {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, rgba(147, 51, 234, 0.4), rgba(59, 130, 246, 0.4));
+            z-index: 1;
+            transition: width 0.3s ease;
+        }
+
+        .song-vote-row.winner-row .song-vote-bar {
+            background: linear-gradient(90deg, rgba(234, 179, 8, 0.45), rgba(249, 115, 22, 0.45));
+        }
+
+        .song-vote-content {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        .song-vote-badge {
+            background: #6b21a8;
+            color: #fff;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-family: 'Anton', sans-serif;
+            margin-right: 6px;
+        }
+
+        .song-vote-footer {
+            margin-top: 8px;
+            font-size: 0.74rem;
+            color: #94a3b8;
+            text-align: center;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="stage-9-16" id="stageRoot">
+        <div class="hover-toolbar">
+            <button class="tool-btn" onclick="toggleFullScreenStage()">
+                ⛶ Plein Écran (F11)
+            </button>
+            <button class="tool-btn" onclick="toggleAspectMode()">
+                📐 Ratio : 9:16 Pur (Sans étirement) / Étendu
+            </button>
+            <button class="tool-btn" onclick="resetWidgetPositions()">
+                🔄 Réinitialiser positions
+            </button>
+            <button class="tool-btn" onclick="cycleFontScale()">
+                🔍 Grossir Texte Musique (Normal / XL / XXL)
+            </button>
+            <button class="tool-btn" onclick="toggleMusicCardStyle()">
+                🎨 Fond Lecteur (Noir Intense / Semi-Transparent)
+            </button>
+            <button class="tool-btn" onclick="toggleFooterVisibility()">
+                👁️ Barre Bas ON/OFF
+            </button>
+        </div>
+
+        <!-- 1. FOND 16:9 AUTOMATIQUE SELON LA BRANCHE -->
+        <img id="wallBg" class="wall-bg" src="/assets/wall_16_9_musique.jpg?v=etsi_v5" alt="Mur Briser le Silence">
+
+        <!-- 2. GRAND PANNEAU NUMÉROS D'URGENCE & D'ÉCOUTE (S'AFFICHE EN MODE INCESTE & VSS) -->
+        <div class="draggable-widget" id="emergencyWidget">
+            <div class="emerg-panel">
+                <div class="emerg-header" id="emergHeaderTitle">📞 NUMÉROS D'AIDE & D'ÉCOUTE (GRATUITS & ANONYMES)</div>
+                <div class="emerg-grid" id="emergGridList"></div>
+            </div>
+            <div class="resize-handle handle-se" data-target="emergencyWidget" data-dir="se" title="Diagonale (Largeur & Hauteur)"></div>
+            <div class="resize-handle handle-e" data-target="emergencyWidget" data-dir="e" title="Largeur (Droite / Gauche)"></div>
+            <div class="resize-handle handle-s" data-target="emergencyWidget" data-dir="s" title="Hauteur (Haut / Bas)"></div>
+            <div class="resize-handle handle-w" data-target="emergencyWidget" data-dir="w" title="Largeur (Gauche / Droite)"></div>
+        </div>
+
+        <!-- 3. LECTEUR MUSIQUE HAUTE VISIBILITÉ (DÉPLAÇABLE & REDIMENSIONNABLE) -->
+        <div class="draggable-widget" id="musicWidget">
+            <div class="music-card" id="musicCardInner">
+                <div class="hud-cover-wrap">
+                    <img id="hudCoverImg" class="hud-cover-img" src="" alt="Cover">
+                    <div id="hudVinyl" class="hud-vinyl-fallback"></div>
+                </div>
+                <div class="hud-text-col">
+                    <div class="title-marquee-box">
+                        <div class="hud-line1" id="hudLine1">UNDERGROUND INSURRECTION</div>
+                    </div>
+                    <div class="hud-line2" id="hudLine2">🎤 EN ATTENTE DE SON (YOUTUBE / SPOTIFY)</div>
+                    <div class="hud-line3" id="hudLine3">🔊 Punk • Techno • Hardcore • Hip-Hop • Metal</div>
+                    <canvas id="spectrumCanvas" width="360" height="20"></canvas>
+                    <div id="hudDedicaceBadge" class="hud-dedicace-badge" style="display:none;"></div>
+                </div>
+            </div>
+            <div class="resize-handle handle-se" data-target="musicWidget" data-dir="se" title="Diagonale (Largeur & Hauteur)"></div>
+            <div class="resize-handle handle-e" data-target="musicWidget" data-dir="e" title="Largeur (Droite / Gauche)"></div>
+            <div class="resize-handle handle-s" data-target="musicWidget" data-dir="s" title="Hauteur (Haut / Bas)"></div>
+            <div class="resize-handle handle-w" data-target="musicWidget" data-dir="w" title="Largeur (Gauche / Droite)"></div>
+        </div>
+
+        <!-- 4. ÉCRAN VIDÉO TÉMOIGNAGES / REPORTAGES -->
+        <div class="draggable-widget" id="videoWidget">
+            <div class="video-monitor-box" id="videoMonitorBox">
+                <div class="video-monitor-header">
+                    <span class="rec-badge">
+                        <span class="rec-dot"></span>
+                        <span id="videoHeaderTitle">🎥 TÉMOIGNAGE / REPORTAGE</span>
+                    </span>
+                    <span>✥</span>
+                </div>
+                <div class="video-viewport">
+                    <video id="localVideoPlayer" playsinline controls></video>
+                    <iframe id="ytIframePlayer" style="display:none;" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                    <div id="antiDetectOverlay" class="anti-detect-overlay enabled"></div>
+                    <div class="anti-detect-watermark">#BRISERLESILENCE</div>
+                </div>
+            </div>
+            <div class="resize-handle handle-se" data-target="videoWidget" data-dir="se" title="Diagonale (Largeur & Hauteur)"></div>
+            <div class="resize-handle handle-e" data-target="videoWidget" data-dir="e" title="Largeur (Droite / Gauche)"></div>
+            <div class="resize-handle handle-s" data-target="videoWidget" data-dir="s" title="Hauteur (Haut / Bas)"></div>
+            <div class="resize-handle handle-w" data-target="videoWidget" data-dir="w" title="Largeur (Gauche / Droite)"></div>
+        </div>
+
+        <!-- 5. PETITE BARRE D'INFOS TOUT EN BAS -->
+        <div class="draggable-widget" id="footerWidget">
+            <div class="bottom-adaptive-bar">
+                <span class="bottom-branch-tag" id="bottomBranchTag">🎸 UNDERGROUND INSURRECTION</span>
+                <span class="bottom-help-text" id="bottomHelpText">📞 Aide 24h/24 : 119 (Enfance) • 3919 (Violences)</span>
+            </div>
+            <div class="resize-handle handle-se" data-target="footerWidget" data-dir="se" title="Diagonale (Largeur & Hauteur)"></div>
+            <div class="resize-handle handle-e" data-target="footerWidget" data-dir="e" title="Largeur (Droite / Gauche)"></div>
+            <div class="resize-handle handle-s" data-target="footerWidget" data-dir="s" title="Hauteur (Haut / Bas)"></div>
+            <div class="resize-handle handle-w" data-target="footerWidget" data-dir="w" title="Largeur (Gauche / Droite)"></div>
+        </div>
+
+        <!-- 6. BANDEAU TRIGGER WARNING (SUJET SENSIBLE) -->
+        <div class="draggable-widget" id="twWidget">
+            <div class="tw-banner">
+                <span class="tw-badge">⚠️ AVERTISSEMENT</span>
+                <span class="tw-text" id="twTextDisplay">Sujet sensible (Inceste & Violences Sexuelles) — Prenez soin de vous</span>
+            </div>
+            <div class="resize-handle handle-se" data-target="twWidget" data-dir="se" title="Diagonale (Largeur & Hauteur)"></div>
+            <div class="resize-handle handle-e" data-target="twWidget" data-dir="e" title="Largeur (Droite / Gauche)"></div>
+            <div class="resize-handle handle-s" data-target="twWidget" data-dir="s" title="Hauteur (Haut / Bas)"></div>
+            <div class="resize-handle handle-w" data-target="twWidget" data-dir="w" title="Largeur (Gauche / Droite)"></div>
+        </div>
+
+        <!-- 7. COMMENTAIRE ÉPINGLÉ DU LIVE TIKTOK -->
+        <div class="draggable-widget" id="pinnedCommentWidget">
+            <div class="pinned-card">
+                <div id="pinnedAvatarWrap">
+                    <img id="pinnedAvatarImg" class="pinned-avatar" style="display:none;" src="" alt="Avatar">
+                    <div id="pinnedAvatarFallback" class="pinned-avatar">💬</div>
+                </div>
+                <div class="pinned-info">
+                    <div class="pinned-header">
+                        <span class="pinned-tag">📌 QUESTION DU LIVE</span>
+                        <span class="pinned-author" id="pinnedAuthorDisplay">Spectateur</span>
+                    </div>
+                    <div class="pinned-msg" id="pinnedMsgDisplay">...</div>
+                </div>
+            </div>
+            <div class="resize-handle handle-se" data-target="pinnedCommentWidget" data-dir="se" title="Diagonale (Largeur & Hauteur)"></div>
+            <div class="resize-handle handle-e" data-target="pinnedCommentWidget" data-dir="e" title="Largeur (Droite / Gauche)"></div>
+            <div class="resize-handle handle-s" data-target="pinnedCommentWidget" data-dir="s" title="Hauteur (Haut / Bas)"></div>
+            <div class="resize-handle handle-w" data-target="pinnedCommentWidget" data-dir="w" title="Largeur (Gauche / Droite)"></div>
+        </div>
+
+        <!-- 7. ENCART TEXTE LIBRE SUR LE LIVE (DRAGGABLE & RESIZABLE) -->
+        <div class="draggable-widget" id="customBoxWidget">
+            <div class="custom-box-card" id="customBoxCard">
+                <div id="customBoxTitleEl" class="custom-box-title"></div>
+                <div id="customBoxTextEl" class="custom-box-text"></div>
+            </div>
+            <div class="resize-handle handle-se" data-target="customBoxWidget" data-dir="se" title="Diagonale (Largeur & Hauteur)"></div>
+            <div class="resize-handle handle-e" data-target="customBoxWidget" data-dir="e" title="Largeur (Droite / Gauche)"></div>
+            <div class="resize-handle handle-s" data-target="customBoxWidget" data-dir="s" title="Hauteur (Haut / Bas)"></div>
+            <div class="resize-handle handle-w" data-target="customBoxWidget" data-dir="w" title="Largeur (Gauche / Droite)"></div>
+        </div>
+
+        <!-- 8. LECTEUR VIDÉO OVERLAY JINGLES -->
+        <video id="jingleVideoOverlay" class="jingle-video-overlay" playsinline></video>
+
+        <!-- 9. WIDGET DE VOTE MUSICAL DU LIVE -->
+        <div class="draggable-widget" id="songVoteWidget" style="display:none;">
+            <div class="song-vote-card">
+                <div class="song-vote-header">🗳️ VOTE DU LIVE — PROCHAIN SON</div>
+                <div class="song-vote-title" id="songVoteTitle">Tapez !1, !2 ou !3 dans le chat pour voter !</div>
+                <div class="song-vote-list" id="songVoteList"></div>
+                <div class="song-vote-footer" id="songVoteFooter">⏳ Vote en cours...</div>
+            </div>
+            <div class="resize-handle handle-se" data-target="songVoteWidget" data-dir="se" title="Diagonale (Largeur & Hauteur)"></div>
+            <div class="resize-handle handle-e" data-target="songVoteWidget" data-dir="e" title="Largeur (Droite / Gauche)"></div>
+            <div class="resize-handle handle-s" data-target="songVoteWidget" data-dir="s" title="Hauteur (Haut / Bas)"></div>
+            <div class="resize-handle handle-w" data-target="songVoteWidget" data-dir="w" title="Largeur (Gauche / Droite)"></div>
+        </div>
+                <!-- WIDGET 10 : JAUGE D'OBJECTIF DE TAPOTEMENTS / LIKES -->
+        <div class="draggable-widget" id="likeGoalWidget" style="display:none; width:360px; z-index:92;">
+            <div style="background:rgba(15,23,42,0.92); border:2px solid #ef4444; border-radius:10px; padding:10px 14px; box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span id="likeGoalTitle" style="font-size:0.78rem; font-weight:800; color:#fca5a5; text-transform:uppercase;">🎯 OBJECTIF TAPOTEMENTS</span>
+                    <span id="likeGoalCount" style="font-size:0.85rem; font-weight:900; color:#fef08a;">0 / 5 000</span>
+                </div>
+                <div style="width:100%; height:12px; background:rgba(255,255,255,0.15); border-radius:6px; overflow:hidden;">
+                    <div id="likeGoalBar" style="width:0%; height:100%; background:linear-gradient(90deg, #ef4444, #f59e0b); border-radius:6px; transition:width 0.4s ease;"></div>
+                </div>
+            </div>
+            <div class="resize-handle handle-se" data-target="likeGoalWidget" data-dir="se"></div>
+            <div class="resize-handle handle-e" data-target="likeGoalWidget" data-dir="e"></div>
+            <div class="resize-handle handle-s" data-target="likeGoalWidget" data-dir="s"></div>
+            <div class="resize-handle handle-w" data-target="likeGoalWidget" data-dir="w"></div>
+        </div>
+        <!-- WIDGET 9 : ARTICLE & REVUE DE PRESSE SUR LE LIVE -->
+        <div class="draggable-widget" id="articleWidget" style="display:none; width:480px; max-width:94vw; z-index:90;">
+            <div id="stageArticleCard" style="background-color:rgba(15,23,42,0.94); border:2px solid #f59e0b; border-radius:12px; padding:16px; box-shadow:0 8px 24px rgba(0,0,0,0.7); display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span id="stageArticleBadge" style="padding:3px 10px; border-radius:6px; font-size:0.75rem; font-weight:800; background-color:#dc2626; color:#fff; text-transform:uppercase;">📰 PRESSE</span>
+                    <span id="stageArticleDate" style="font-size:0.75rem; color:#94a3b8;"></span>
+                </div>
+                <h2 id="stageArticleTitle" style="font-size:1.25rem; font-weight:800; color:#fbbf24; line-height:1.25;"></h2>
+                <div id="stageArticleImgWrap" style="display:none; max-height:180px; overflow:hidden; border-radius:6px;">
+                    <img id="stageArticleImg" src="" style="width:100%; height:100%; max-height:180px; object-fit:cover;">
+                </div>
+                <div id="stageArticleText" style="font-size:0.95rem; color:#f1f5f9; line-height:1.5; max-height:260px; overflow-y:auto; white-space:pre-line;"></div>
+            </div>
+            <div class="resize-handle handle-se" data-target="articleWidget" data-dir="se" title="Diagonale (Largeur & Hauteur)"></div>
+            <div class="resize-handle handle-e" data-target="articleWidget" data-dir="e" title="Largeur (Droite / Gauche)"></div>
+            <div class="resize-handle handle-s" data-target="articleWidget" data-dir="s" title="Hauteur (Haut / Bas)"></div>
+            <div class="resize-handle handle-w" data-target="articleWidget" data-dir="w" title="Largeur (Gauche / Droite)"></div>
+        </div>
+
+    </div>
+
+    <script>
+        const WIDGET_IDS = ["emergencyWidget", "musicWidget", "videoWidget", "articleWidget", "footerWidget", "twWidget", "pinnedCommentWidget", "customBoxWidget", "songVoteWidget", "likeGoalWidget"];
+        let activeDragEl = null;
+        let activeResizeEl = null;
+        let startX = 0, startY = 0, startLeft = 0, startTop = 0, startWidth = 0;
+        let lastRustScalePct = -1;
+        const FONT_SCALES = [1.0, 1.18, 1.35];
+        let fontScaleIdx = 0;
+
+        function cycleFontScale() {
+            fontScaleIdx = (fontScaleIdx + 1) % FONT_SCALES.length;
+            document.documentElement.style.setProperty("--music-font-scale", FONT_SCALES[fontScaleIdx]);
+        }
+
+        function saveLayout() {
+            const layout = {};
+            const stage = document.getElementById("stageRoot");
+            const sw = stage.clientWidth || 1;
+            const sh = stage.clientHeight || 1;
+            WIDGET_IDS.forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el.offsetWidth > 0) {
+                    layout[id] = {
+                        leftPct: (el.offsetLeft / sw) * 100,
+                        topPct: (el.offsetTop / sh) * 100,
+                        widthPct: (el.offsetWidth / sw) * 100
+                    };
+                }
+            });
+            localStorage.setItem("bls_stage_layout_16_9_v2", JSON.stringify(layout));
+        }
+
+        function loadLayout() {
+            try {
+                const raw = localStorage.getItem("bls_stage_layout_16_9_v2");
+                if (!raw) return;
+                const layout = JSON.parse(raw);
+                WIDGET_IDS.forEach(id => {
+                    const el = document.getElementById(id);
+                    const cfg = layout[id];
+                    if (el && cfg) {
+                        el.style.left = cfg.leftPct.toFixed(2) + "%";
+                        el.style.top = cfg.topPct.toFixed(2) + "%";
+                        el.style.width = cfg.widthPct.toFixed(2) + "%";
+                    }
+                });
+            } catch (e) {}
+        }
+
+        function resetWidgetPositions() {
+            localStorage.removeItem("bls_stage_layout_16_9_v2");
+            const e = document.getElementById("emergencyWidget");
+            e.style.left = "3%"; e.style.top = "18%"; e.style.width = "94%";
+            const m = document.getElementById("musicWidget");
+            m.style.left = "18%"; m.style.top = "74%"; m.style.width = "64%";
+            const v = document.getElementById("videoWidget");
+            v.style.left = "25%"; v.style.top = "42%"; v.style.width = "50%";
+            const f = document.getElementById("footerWidget");
+            f.style.left = "3%"; f.style.top = "auto"; f.style.bottom = "14px"; f.style.width = "94%";
+            f.style.display = "block";
+            const tw = document.getElementById("twWidget");
+            tw.style.left = "3%"; tw.style.top = "2%"; tw.style.width = "94%";
+            const pi = document.getElementById("pinnedCommentWidget");
+            pi.style.left = "5%"; pi.style.top = "52%"; pi.style.width = "90%";
+            const cb = document.getElementById("customBoxWidget");
+            cb.style.left = "20%"; cb.style.top = "25%"; cb.style.width = "60%";
+        }
+
+        function hexToRgba(hex, alpha) {
+            if (!hex) return `rgba(18, 20, 32, ${alpha})`;
+            let c = hex.replace('#', '');
+            if (c.length === 3) c = c.split('').map(x => x + x).join('');
+            const num = parseInt(c, 16);
+            if (isNaN(num)) return `rgba(18, 20, 32, ${alpha})`;
+            return `rgba(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}, ${alpha})`;
+        }
+
+        function toggleMusicCardStyle() {
+            document.getElementById("musicCardInner").classList.toggle("glass-minimal");
+        }
+
+        function toggleFullScreenStage() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                document.exitFullscreen().catch(() => {});
+            }
+        }
+
+        function toggleAspectMode() {
+            const st = document.getElementById("stageRoot");
+            st.classList.toggle("wide-fill-mode");
+            const isWide = st.classList.contains("wide-fill-mode");
+            const cfg = BRANCH_CONFIG[currentBranch] || BRANCH_CONFIG.musique;
+            document.getElementById("wallBg").src = isWide ? (cfg.bgWide || cfg.bg) : cfg.bg;
+        }
+
+        function toggleFooterVisibility() {
+            const f = document.getElementById("footerWidget");
+            f.style.display = (f.style.display === "none") ? "block" : "none";
+        }
+
+        document.querySelectorAll(".draggable-widget").forEach(widget => {
+            widget.addEventListener("mousedown", (e) => {
+                if (e.target.classList.contains("resize-handle") || e.target.tagName === "VIDEO") return;
+                activeDragEl = widget;
+                startX = e.clientX;
+                startY = e.clientY;
+                startLeft = widget.offsetLeft;
+                startTop = widget.offsetTop;
+                e.preventDefault();
+            });
+        });
+
+        let activeResizeDir = "se";
+        let startHeight = 0;
+
+        document.querySelectorAll(".resize-handle").forEach(handle => {
+            handle.addEventListener("mousedown", (e) => {
+                const targetId = handle.getAttribute("data-target");
+                activeResizeEl = document.getElementById(targetId);
+                activeResizeDir = handle.getAttribute("data-dir") || "se";
+                startX = e.clientX;
+                startY = e.clientY;
+                startWidth = activeResizeEl.offsetWidth;
+                startHeight = activeResizeEl.offsetHeight;
+                startLeft = activeResizeEl.offsetLeft;
+                startTop = activeResizeEl.offsetTop;
+                handle.classList.add("active");
+                e.stopPropagation();
+                e.preventDefault();
+            });
+        });
+
+        window.addEventListener("mousemove", (e) => {
+            const stage = document.getElementById("stageRoot");
+            const sw = stage.clientWidth || 1;
+            const sh = stage.clientHeight || 1;
+
+            if (activeDragEl) {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                const newLeft = Math.max(0, Math.min(sw - activeDragEl.offsetWidth, startLeft + dx));
+                const newTop = Math.max(0, Math.min(sh - activeDragEl.offsetHeight, startTop + dy));
+                activeDragEl.style.left = ((newLeft / sw) * 100).toFixed(2) + "%";
+                activeDragEl.style.top = ((newTop / sh) * 100).toFixed(2) + "%";
+            } else if (activeResizeEl) {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                const minW = (activeResizeEl.id === "videoWidget") ? 75 : 120;
+                const minH = 50;
+
+                // 1. Redimensionnement horizontal droit (Bord droit ou coin diagonale)
+                if (activeResizeDir === "e" || activeResizeDir === "se") {
+                    const newW = Math.max(minW, Math.min(sw - activeResizeEl.offsetLeft, startWidth + dx));
+                    const pct = (newW / sw) * 100;
+                    activeResizeEl.style.width = pct.toFixed(2) + "%";
+                    if (activeResizeEl.id === "videoWidget") {
+                        activeResizeEl.classList.toggle("mini-size", pct < 42);
+                    }
+                }
+
+                // 2. Redimensionnement horizontal gauche (Bord gauche)
+                if (activeResizeDir === "w") {
+                    const maxDx = startWidth - minW;
+                    const clampedDx = Math.min(dx, maxDx);
+                    const newLeft = Math.max(0, startLeft + clampedDx);
+                    const newW = startWidth - (newLeft - startLeft);
+                    activeResizeEl.style.left = ((newLeft / sw) * 100).toFixed(2) + "%";
+                    activeResizeEl.style.width = ((newW / sw) * 100).toFixed(2) + "%";
+                }
+
+                // 3. Redimensionnement vertical bas (Bord bas ou coin diagonale)
+                if (activeResizeDir === "s" || activeResizeDir === "se") {
+                    const newH = Math.max(minH, Math.min(sh - activeResizeEl.offsetTop, startHeight + dy));
+                    activeResizeEl.style.height = ((newH / sh) * 100).toFixed(2) + "%";
+                    const scrollChild = activeResizeEl.querySelector("#stageArticleCard, #stageArticleText, .music-card, .video-monitor-box");
+                    if (scrollChild) {
+                        scrollChild.style.maxHeight = "100%";
+                    }
+                }
+            }
+        });
+
+        window.addEventListener("mouseup", () => {
+            if (activeDragEl || activeResizeEl) {
+                document.querySelectorAll(".resize-handle.active").forEach(h => h.classList.remove("active"));
+                saveLayout();
+                activeDragEl = null;
+                activeResizeEl = null;
+            }
+        });
+
+        loadLayout();
+
+        // Couleurs douces et reposantes (Zéro jaune criard)
+        const BRANCH_CONFIG = {
+            vss: {
+                bg: "/assets/wall_16_9_vss.jpg?v=etsi_v5",
+                color: "#8b5cf6",
+                accent: "#d8b4fe",
+                tag: "💜 PAROLE AUX SURVIVANT·E·S",
+                defaultTitle: "PAROLE AUX SURVIVANT·E·S — INCESTE & VSS"
+            },
+            politique: {
+                bg: "/assets/wall_16_9_politique.jpg?v=etsi_v5",
+                color: "#dc2626",
+                accent: "#fca5a5",
+                tag: "✊ FRONT MILITANT",
+                defaultTitle: "ANTIFA • FÉMINISTE • ANTICAPITALISTE"
+            },
+                        musique: {
+                bg: "/assets/wall_16_9_musique.jpg?v=etsi_v5",
+                color: "#d97706",
+                accent: "#fdba74",
+                tag: "🎸 UNDERGROUND INSURRECTION",
+                defaultTitle: "UNDERGROUND INSURRECTION — LIVE"
+            },
+            chill: {
+                bg: "/assets/bg_branche4_chill_wide16_9.jpg",
+                color: "#10b981",
+                accent: "#6ee7b7",
+                tag: "☕ ESPACE CHILL & ÉCHANGE",
+                defaultTitle: "CHILL • DÉCOMPRESSION & DISCUSSION"
+            }
+        };
+
+        let currentBranch = "";
+        let currentAudioPeak = 0.0;
+        let isTrackPlaying = false;
+        let lastVideoPath = "";
+        let lastYtId = "";
+        let lastVideoCmdId = 0;
+        let lastJingleId = 0;
+
+        // Synthétiseur audio WebAudio pour jouer instantanément les Jingles à zéro latence
+        let audioCtx = null;
+        function getAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === "suspended") {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        let jingleAudioEl = null;
+        function playMediaJingle(type, vol, key) {
+            const volRatio = Math.max(0, Math.min(1, (vol !== undefined ? vol : 80) / 100));
+            if (type === "video") {
+                const v = document.getElementById("jingleVideoOverlay");
+                v.src = "/jingle_stream?v=" + Date.now();
+                v.volume = volRatio;
+                v.style.display = "block";
+                v.play().catch(e => console.log("Video play error", e));
+                v.onended = () => { v.style.display = "none"; };
+            } else if (type === "audio") {
+                if (!jingleAudioEl) {
+                    jingleAudioEl = new Audio();
+                }
+                jingleAudioEl.src = "/jingle_stream?v=" + Date.now();
+                jingleAudioEl.volume = volRatio;
+                jingleAudioEl.play().catch(e => console.log("Audio play error", e));
+            } else {
+                playLiveJingleSound(key || type, volRatio);
+            }
+        }
+
+        function playLiveJingleSound(type, volRatio) {
+            try {
+                const vFactor = (volRatio !== undefined ? volRatio : 0.8) / 0.8;
+                const ctx = getAudioContext();
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                if (type === "alerte") {
+                    osc.type = "sawtooth";
+                    osc.frequency.setValueAtTime(800, now);
+                    osc.frequency.linearRampToValueAtTime(400, now + 0.15);
+                    osc.frequency.linearRampToValueAtTime(800, now + 0.3);
+                    osc.frequency.linearRampToValueAtTime(400, now + 0.45);
+                    gain.gain.setValueAtTime(0.3 * vFactor, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01 * vFactor, now + 0.5);
+                    osc.start(now);
+                    osc.stop(now + 0.5);
+                } else if (type === "soutien") {
+                    osc.type = "sine";
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.12);
+                    osc.frequency.setValueAtTime(783.99, now + 0.24);
+                    osc.frequency.setValueAtTime(1046.50, now + 0.36);
+                    gain.gain.setValueAtTime(0.25 * vFactor, now);
+                    gain.gain.exponentialRampToValueAtTime(0.005 * vFactor, now + 0.7);
+                    osc.start(now);
+                    osc.stop(now + 0.7);
+                } else if (type === "transition") {
+                    osc.type = "triangle";
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.exponentialRampToValueAtTime(900, now + 0.25);
+                    gain.gain.setValueAtTime(0.25 * vFactor, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01 * vFactor, now + 0.35);
+                    osc.start(now);
+                    osc.stop(now + 0.35);
+                } else if (type === "bip") {
+                    osc.type = "sine";
+                    osc.frequency.setValueAtTime(1000, now);
+                    gain.gain.setValueAtTime(0.35 * vFactor, now);
+                    gain.gain.setValueAtTime(0.35 * vFactor, now + 0.4);
+                    gain.gain.exponentialRampToValueAtTime(0.01 * vFactor, now + 0.45);
+                    osc.start(now);
+                    osc.stop(now + 0.45);
+                } else if (type === "gong") {
+                    osc.type = "sine";
+                    osc.frequency.setValueAtTime(130.81, now);
+                    gain.gain.setValueAtTime(0.5 * vFactor, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001 * vFactor, now + 1.2);
+                    osc.start(now);
+                    osc.stop(now + 1.2);
+                } else if (type === "bass") {
+                    osc.type = "sine";
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.exponentialRampToValueAtTime(45, now + 0.4);
+                    gain.gain.setValueAtTime(0.6 * vFactor, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01 * vFactor, now + 0.55);
+                    osc.start(now);
+                    osc.stop(now + 0.55);
+                }
+            } catch (e) {}
+        }
+
+        let emergFocusIdx = 0;
+        let emergActiveCount = 0;
+        let emergStyle = "grille";
+        let lastEmergSig = "";
+
+        setInterval(() => {
+            if (emergStyle === "zoom" && emergActiveCount > 0) {
+                emergFocusIdx = (emergFocusIdx + 1) % emergActiveCount;
+                document.querySelectorAll(".emerg-item").forEach((el, i) => {
+                    el.classList.toggle("zoom-focus", i === emergFocusIdx);
+                });
+            }
+        }, 4000);
+
+        const specCanvas = document.getElementById("spectrumCanvas");
+        const specCtx = specCanvas.getContext("2d");
+        const smoothedBars = new Array(28).fill(0.12);
+
+        function animateSpectrum() {
+            requestAnimationFrame(animateSpectrum);
+            specCtx.clearRect(0, 0, specCanvas.width, specCanvas.height);
+            const barCount = 28;
+            const spacing = 3;
+            const barW = (specCanvas.width - (barCount * spacing)) / barCount;
+            const t = performance.now() / 90;
+
+            const branchCol = getComputedStyle(document.documentElement).getPropertyValue('--branch-col').trim() || '#d97706';
+            const accentCol = getComputedStyle(document.documentElement).getPropertyValue('--accent-col').trim() || '#cbd5e1';
+
+            for (let i = 0; i < barCount; i++) {
+                let target = 0.12;
+                if (currentAudioPeak > 0.015) {
+                    const wave = Math.abs(Math.sin(t + i * 0.55)) * 0.65 + Math.abs(Math.cos(t * 1.35 - i * 0.35)) * 0.35;
+                    target = Math.min(1.0, Math.max(0.12, currentAudioPeak * 1.4 * wave));
+                } else if (isTrackPlaying) {
+                    const wave = Math.abs(Math.sin(t + i * 0.45)) * 0.6 + Math.abs(Math.cos(t * 1.2 - i * 0.3)) * 0.4;
+                    target = Math.min(0.95, Math.max(0.12, 0.75 * wave));
+                } else {
+                    target = 0.12 + Math.abs(Math.sin(t * 0.2 + i * 0.4)) * 0.08;
+                }
+
+                smoothedBars[i] = smoothedBars[i] * 0.55 + target * 0.45;
+                const bh = Math.max(3, smoothedBars[i] * (specCanvas.height - 2));
+                const x = i * (barW + spacing) + 1;
+                const y = specCanvas.height - bh;
+
+                specCtx.fillStyle = smoothedBars[i] > 0.65 ? accentCol : branchCol;
+                specCtx.fillRect(x, y, barW, bh);
+            }
+        }
+        animateSpectrum();
+
+        function updateTitleWithMarquee(el, newText) {
+            if (el.textContent !== newText) {
+                el.textContent = newText;
+                el.classList.toggle("scrolling", newText.length > 26);
+            }
+        }
+
+        let isPollingState = false;
+
+        async function syncWithRustBackend() {
+            if (isPollingState) return;
+            isPollingState = true;
+            const ctrl = new AbortController();
+            const timerId = setTimeout(() => ctrl.abort(), 1200);
+            try {
+                const res = await fetch("http://127.0.0.1:8765/state?t=" + Date.now(), {
+                    cache: "no-store",
+                    signal: ctrl.signal
+                });
+                clearTimeout(timerId);
+                if (!res.ok) return;
+                const st = await res.json();
+
+                currentAudioPeak = st.audio_peak || 0.0;
+                const sp = st.spotify || {};
+                isTrackPlaying = !!sp.playing;
+
+                const br = st.branch || "musique";
+                const cfg = BRANCH_CONFIG[br] || BRANCH_CONFIG.musique;
+                if (br !== currentBranch) {
+                    currentBranch = br;
+                    let activeBg2 = cfg.bgWide || cfg.bg;
+                    if (st.custom_backgrounds && st.custom_backgrounds[br + "_16_9"]) {
+                        activeBg2 = st.custom_backgrounds[br + "_16_9"];
+                    }
+                    document.getElementById("wallBg").src = activeBg2;
+                    document.documentElement.style.setProperty("--branch-col", cfg.color);
+                    document.documentElement.style.setProperty("--accent-col", cfg.accent);
+                    document.getElementById("bottomBranchTag").textContent = cfg.tag;
+                }
+
+                document.getElementById("bottomHelpText").textContent = st.custom_sub || "";
+
+                const emergWidget = document.getElementById("emergencyWidget");
+                emergWidget.style.display = st.emergency_visible ? "block" : "none";
+                if (st.emergency_visible) {
+                    const pos169 = st.emergency_pos_16_9 || "top";
+                    emergWidget.classList.remove("emerg-pos-left", "emerg-pos-right", "emerg-pos-top", "emerg-col-layout");
+                    if (pos169 === "left") {
+                        emergWidget.classList.add("emerg-pos-left", "emerg-col-layout");
+                    } else if (pos169 === "right") {
+                        emergWidget.classList.add("emerg-pos-right", "emerg-col-layout");
+                    } else {
+                        emergWidget.classList.add("emerg-pos-top");
+                    }
+
+                    document.getElementById("emergHeaderTitle").textContent =
+                        st.emergency_title || "📞 NUMÉROS D'AIDE & D'ÉCOUTE (GRATUITS & ANONYMES)";
+                    emergStyle = st.emergency_style || "grille";
+                    const activeItems = (st.emergency_numbers || []).filter(x => x.enabled);
+                    emergActiveCount = activeItems.length;
+                    const sig = JSON.stringify(activeItems) + emergStyle + (st.emergency_scale_pct || 100) + pos169;
+                    if (sig !== lastEmergSig) {
+                        lastEmergSig = sig;
+                        const scale = (st.emergency_scale_pct || 100) / 100.0;
+                        const listEl = document.getElementById("emergGridList");
+                        listEl.innerHTML = activeItems.map((item, i) => `
+                            <div class="emerg-item ${emergStyle === 'zoom' && i === (emergFocusIdx % Math.max(1, activeItems.length)) ? 'zoom-focus' : ''}">
+                                <span class="emerg-badge-num" style="font-size:${(0.88 * scale).toFixed(2)}rem;">📞 ${item.number}</span>
+                                <span class="emerg-desc" style="font-size:${(0.68 * scale).toFixed(2)}rem;" title="${item.label}">${item.label}</span>
+                            </div>
+                        `).join("");
+                    }
+                }
+
+                const covImg = document.getElementById("hudCoverImg");
+                const vinyl = document.getElementById("hudVinyl");
+                if (sp.cover_b64 && sp.cover_b64.length > 30) {
+                    if (covImg.src !== sp.cover_b64) {
+                        covImg.src = sp.cover_b64;
+                    }
+                    covImg.classList.add("loaded");
+                    vinyl.style.display = "none";
+                } else {
+                    covImg.classList.remove("loaded");
+                    vinyl.style.display = "flex";
+                }
+
+                const l1 = document.getElementById("hudLine1");
+                const l2 = document.getElementById("hudLine2");
+                const l3 = document.getElementById("hudLine3");
+
+                const mode = st.box_mode || "combine";
+                if (mode === "sujet") {
+                    updateTitleWithMarquee(l1, cfg.defaultTitle);
+                    l2.textContent = st.custom_topic || "";
+                    l3.textContent = st.custom_sub || "";
+                    if (st.custom_topic_font_size) l2.style.fontSize = st.custom_topic_font_size + "px";
+                    if (st.custom_sub_font_size) l3.style.fontSize = st.custom_sub_font_size + "px";
+                } else if (mode === "musique") {
+                    if (sp.connected && sp.title) {
+                        updateTitleWithMarquee(l1, sp.title.toUpperCase());
+                        l2.textContent = "🎤 " + (sp.artist || "ARTISTE").toUpperCase();
+                        l3.textContent = sp.album ? "💿 ALBUM : " + sp.album.toUpperCase() : "🔊 SESSION LIVE";
+                    } else {
+                        updateTitleWithMarquee(l1, cfg.defaultTitle);
+                        l2.textContent = st.custom_topic || "";
+                        l3.textContent = st.custom_sub || "";
+                    if (st.custom_topic_font_size) l2.style.fontSize = st.custom_topic_font_size + "px";
+                    if (st.custom_sub_font_size) l3.style.fontSize = st.custom_sub_font_size + "px";
+                    }
+                } else {
+                    if (br === "musique" && sp.connected && sp.title) {
+                        updateTitleWithMarquee(l1, sp.title.toUpperCase());
+                        l2.textContent = "🎤 " + (sp.artist || "ARTISTE").toUpperCase();
+                        l3.textContent = sp.album ? "💿 ALBUM : " + sp.album.toUpperCase() : st.custom_topic;
+                    } else {
+                        updateTitleWithMarquee(l1, st.custom_topic || cfg.defaultTitle);
+                        if (sp.connected && sp.title) {
+                            l2.textContent = "🎵 " + sp.title.toUpperCase() + (sp.artist ? " — " + sp.artist.toUpperCase() : "");
+                        } else {
+                            l2.textContent = cfg.defaultTitle;
+                        }
+                        l3.textContent = st.custom_sub || "";
+                    }
+                }
+
+                const stageRoot = document.getElementById("stageRoot");
+                const vidWidget = document.getElementById("videoWidget");
+                const vidPlayer = document.getElementById("localVideoPlayer");
+                const ytPlayer = document.getElementById("ytIframePlayer");
+
+                stageRoot.classList.toggle("video-mode-on", !!st.video_active);
+
+                const scalePct = st.video_scale_pct || 24;
+                if (scalePct !== lastRustScalePct) {
+                    lastRustScalePct = scalePct;
+                    const widthPct = Math.min(96, Math.max(18, Math.round(scalePct * 1.65)));
+                    vidWidget.style.width = widthPct + "%";
+                    vidWidget.classList.toggle("mini-size", widthPct < 42);
+                }
+
+                document.getElementById("videoHeaderTitle").textContent = st.video_title || "🎥 TÉMOIGNAGE / REPORTAGE";
+                document.getElementById("antiDetectOverlay").classList.toggle("enabled", !!st.video_anti_detect);
+                vidPlayer.volume = Math.min(1.0, Math.max(0.0, (st.video_volume ?? 85) / 100.0));
+
+                if (st.video_active) {
+                    if (st.video_source_type === "youtube" && st.video_youtube_id) {
+                        vidPlayer.pause();
+                        vidPlayer.style.display = "none";
+                        ytPlayer.style.display = "block";
+                        const ytId = st.video_youtube_id;
+                        const autoplay = st.video_yt_autoplay !== false ? 1 : 0;
+                        const loop = st.video_yt_loop ? 1 : 0;
+                        const controls = st.video_yt_controls !== false ? 1 : 0;
+                        const mute = st.video_yt_mute ? 1 : 0;
+                        const targetSrc = `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=${autoplay}&loop=${loop}&playlist=${ytId}&controls=${controls}&mute=${mute}&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
+                        if (lastYtId !== ytId || ytPlayer.getAttribute("data-src-base") !== targetSrc) {
+                            lastYtId = ytId;
+                            ytPlayer.setAttribute("data-src-base", targetSrc);
+                            ytPlayer.src = targetSrc;
+                        }
+                    } else if (st.video_file_path) {
+                        ytPlayer.src = "";
+                        ytPlayer.removeAttribute("data-src-base");
+                        ytPlayer.style.display = "none";
+                        vidPlayer.style.display = "block";
+                        if (lastVideoPath !== st.video_file_path) {
+                            lastVideoPath = st.video_file_path;
+                            vidPlayer.src = "http://127.0.0.1:8765/video_stream?t=" + Date.now();
+                            vidPlayer.play().catch(() => {});
+                        }
+                    }
+                } else {
+                    vidPlayer.pause();
+                    if (ytPlayer.src) {
+                        ytPlayer.src = "";
+                        ytPlayer.removeAttribute("data-src-base");
+                        lastYtId = "";
+                    }
+                }
+
+                // 7. BANDEAU TRIGGER WARNING (SUJET SENSIBLE)
+                const twWidget = document.getElementById("twWidget");
+                twWidget.style.display = st.trigger_warning_visible ? "block" : "none";
+                if (st.trigger_warning_visible) {
+                    document.getElementById("twTextDisplay").textContent =
+                        st.trigger_warning_text || "Sujet sensible (Inceste & Violences Sexuelles) — Prenez soin de vous";
+                }
+
+                // 8. COMMENTAIRE / QUESTION ÉPINGLÉ(E) DU CHAT TIKTOK
+                const pinnedWidget = document.getElementById("pinnedCommentWidget");
+                pinnedWidget.style.display = (st.pinned_visible && st.pinned_text) ? "block" : "none";
+                if (st.pinned_visible && st.pinned_text) {
+                    document.getElementById("pinnedAuthorDisplay").textContent = st.pinned_author || "Spectateur";
+                    const msgEl = document.getElementById("pinnedMsgDisplay");
+                    msgEl.textContent = st.pinned_text;
+                    msgEl.style.fontSize = (st.pinned_font_size || 18) + "px";
+                    msgEl.style.textAlign = st.pinned_align || "left";
+                    const pImg = document.getElementById("pinnedAvatarImg");
+                    const pFbk = document.getElementById("pinnedAvatarFallback");
+                    if (st.pinned_avatar && st.pinned_avatar.length > 5) {
+                        pImg.src = st.pinned_avatar;
+                        pImg.style.display = "block";
+                        pFbk.style.display = "none";
+                    } else {
+                        pImg.style.display = "none";
+                        pFbk.style.display = "flex";
+                    }
+                }
+
+                // 8. BIS - ENCART TEXTE LIBRE SUR LE LIVE
+                const boxWidget = document.getElementById("customBoxWidget");
+                const hasBoxContent = (st.custom_box_text && st.custom_box_text.trim().length > 0) || (st.custom_box_has_title && st.custom_box_title && st.custom_box_title.trim().length > 0);
+                boxWidget.style.display = (st.custom_box_visible && hasBoxContent) ? "block" : "none";
+                if (st.custom_box_visible && hasBoxContent) {
+                    const boxCard = document.getElementById("customBoxCard");
+                    const titleEl = document.getElementById("customBoxTitleEl");
+                    const textEl = document.getElementById("customBoxTextEl");
+
+                    if (st.custom_box_has_title && st.custom_box_title && st.custom_box_title.trim().length > 0) {
+                        titleEl.style.display = "block";
+                        titleEl.textContent = st.custom_box_title;
+                        titleEl.style.textAlign = st.custom_box_align || "center";
+                        titleEl.style.fontSize = (st.custom_box_title_font_size || 22) + "px";
+                    } else {
+                        titleEl.style.display = "none";
+                    }
+
+                    textEl.textContent = st.custom_box_text || "";
+                    textEl.style.fontSize = (st.custom_box_font_size || 20) + "px";
+                    textEl.style.textAlign = st.custom_box_align || "center";
+                    textEl.style.color = st.custom_box_text_color || "#ffffff";
+
+                    const opac = Math.max(0, Math.min(100, (st.custom_box_bg_opacity !== undefined ? st.custom_box_bg_opacity : 90))) / 100;
+                    boxCard.style.backgroundColor = hexToRgba(st.custom_box_bg_color || "#121420", opac);
+                    boxCard.style.border = (st.custom_box_border_width !== undefined ? st.custom_box_border_width : 2) + "px solid " + (st.custom_box_border_color || "#a855f7");
+                    boxCard.style.borderRadius = (st.custom_box_border_radius !== undefined ? st.custom_box_border_radius : 10) + "px";
+                    boxCard.style.padding = (st.custom_box_padding !== undefined ? st.custom_box_padding : 12) + "px";
+                }
+
+                                // ARTICLE & REVUE DE PRESSE
+                const art = st.article || {};
+                const artWidget = document.getElementById("articleWidget");
+                if (artWidget) {
+                    artWidget.style.display = (art.visible && (art.title || art.text)) ? "block" : "none";
+                    if (art.visible) {
+                        document.getElementById("stageArticleBadge").textContent = art.source || "📰 PRESSE";
+                        document.getElementById("stageArticleBadge").style.backgroundColor = art.source_badge_color || "#dc2626";
+                        document.getElementById("stageArticleDate").textContent = art.date ? `📅 ${art.date}` : "";
+                        const at = document.getElementById("stageArticleTitle");
+                        at.textContent = art.title || "";
+                        at.style.fontSize = (art.font_size_title || 20) + "px";
+                        at.style.color = art.title_color || "#fbbf24";
+
+                        articleAutoScrollActive = !!art.auto_scroll;
+                        articleScrollSpeed = art.scroll_speed || 3;
+                        const ax = document.getElementById("stageArticleText");
+                        ax.textContent = art.text || "";
+                        ax.style.fontSize = (art.font_size_text || 15) + "px";
+                        ax.style.color = art.text_color || "#f1f5f9";
+                        ax.style.textAlign = art.text_align || "left";
+
+                        const aiWrap = document.getElementById("stageArticleImgWrap");
+                        const ai = document.getElementById("stageArticleImg");
+                        if (art.show_image && art.image_url && art.image_url.trim().length > 5) {
+                            ai.src = art.image_url.trim();
+                            aiWrap.style.display = "block";
+                        } else {
+                            aiWrap.style.display = "none";
+                        }
+
+                        const card = document.getElementById("stageArticleCard");
+                        const opac = Math.max(0, Math.min(100, art.bg_opacity !== undefined ? art.bg_opacity : 92)) / 100;
+                        card.style.backgroundColor = hexToRgba(art.bg_color || "#0f172a", opac);
+                        card.style.border = `${art.border_width !== undefined ? art.border_width : 2}px solid ${art.border_color || "#f59e0b"}`;
+                        card.style.borderRadius = `${art.border_radius !== undefined ? art.border_radius : 12}px`;
+                    }
+                }
+
+                // 9. JINGLES & EFFETS SONORES DU LIVE (MP3, WAV, VIDÉO OU SYNTH)
+                if (st.jingle_cmd_id && st.jingle_cmd_id > lastJingleId) {
+                    lastJingleId = st.jingle_cmd_id;
+                    playMediaJingle(st.jingle_type, st.jingle_volume, st.jingle_key);
+                }
+
+                // 10. DÉDICACE MORCEAU CHOISI
+                const dedicaceEl = document.getElementById("hudDedicaceBadge");
+                if (dedicaceEl) {
+                    if (st.current_song_requester && st.current_song_requester.trim().length > 0) {
+                        dedicaceEl.textContent = "🎧 Choisi par " + st.current_song_requester;
+                        dedicaceEl.style.display = "inline-flex";
+                    } else {
+                        dedicaceEl.style.display = "none";
+                    }
+                }
+
+                // 11. WIDGET DE VOTE MUSICAL
+                const voteWidget = document.getElementById("songVoteWidget");
+                if (voteWidget) {
+                    const vote = st.song_vote;
+                    if (vote && vote.active) {
+                        voteWidget.style.display = "block";
+                        const titleEl = document.getElementById("songVoteTitle");
+                        if (titleEl) titleEl.textContent = vote.title || "Tapez !1, !2 ou !3 dans le chat pour voter !";
+
+                        const listEl = document.getElementById("songVoteList");
+                        if (listEl) {
+                            const choices = [
+                                { num: 1, text: vote.choice1, votes: vote.votes1 || 0, badge: "!1" },
+                                { num: 2, text: vote.choice2, votes: vote.votes2 || 0, badge: "!2" },
+                                { num: 3, text: vote.choice3, votes: vote.votes3 || 0, badge: "!3" },
+                                { num: 4, text: vote.choice4, votes: vote.votes4 || 0, badge: "!4" }
+                            ].filter(c => c.text && c.text.trim().length > 0);
+
+                            const total = choices.reduce((sum, c) => sum + c.votes, 0);
+
+                            listEl.innerHTML = choices.map(c => {
+                                const pct = total > 0 ? Math.round((c.votes / total) * 100) : 0;
+                                const isWinner = vote.winner === c.num;
+                                return `
+                                    <div class="song-vote-row ${isWinner ? 'winner-row' : ''}">
+                                        <div class="song-vote-bar" style="width: ${pct}%"></div>
+                                        <div class="song-vote-content">
+                                            <span><span class="song-vote-badge">${c.badge}</span> ${c.text} ${isWinner ? '👑' : ''}</span>
+                                            <span>${pct}% (${c.votes})</span>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join("");
+                        }
+                        const footEl = document.getElementById("songVoteFooter");
+                        if (footEl) {
+                            if (vote.winner) {
+                                footEl.textContent = "🏆 Vote terminé ! Choix gagnant désigné.";
+                            } else {
+                                const total = (vote.votes1 || 0) + (vote.votes2 || 0) + (vote.votes3 || 0) + (vote.votes4 || 0);
+                                footEl.textContent = "⏳ Vote en direct • " + total + " votes au total";
+                            }
+                        }
+                    } else {
+                        voteWidget.style.display = "none";
+                    }
+                }
+
+                if (st.video_cmd_id && st.video_cmd_id > lastVideoCmdId) {
+                    lastVideoCmdId = st.video_cmd_id;
+                    if (st.video_cmd_action === "toggle_play") {
+                        if (vidPlayer.paused) vidPlayer.play().catch(() => {});
+                        else vidPlayer.pause();
+                    } else if (st.video_cmd_action === "seek_back") {
+                        vidPlayer.currentTime = Math.max(0, vidPlayer.currentTime - 10);
+                    } else if (st.video_cmd_action === "seek_fwd") {
+                        vidPlayer.currentTime = vidPlayer.currentTime + 10;
+                    } else if (st.video_cmd_action === "restart") {
+                        vidPlayer.currentTime = 0;
+                        vidPlayer.play().catch(() => {});
+                    }
+                }
+            } catch (e) {
+            } finally {
+                clearTimeout(timerId);
+                isPollingState = false;
+            }
+        }
+
+        
+        // =========================================================
+        // DÉFILEMENT AUTOMATIQUE DU TEXTE DE L'ARTICLE (AUTO-SCROLL)
+        // =========================================================
+        let articleAutoScrollActive = false;
+        let articleScrollSpeed = 3;
+        let articleScrollPauseUntil = 0;
+        let articleUserHovered = false;
+
+        const stageArticleTextEl = document.getElementById("stageArticleText");
+        if (stageArticleTextEl) {
+            stageArticleTextEl.addEventListener("mouseenter", () => { articleUserHovered = true; });
+            stageArticleTextEl.addEventListener("mouseleave", () => { articleUserHovered = false; });
+        }
+
+        function runStageArticleAutoScroll() {
+            requestAnimationFrame(runStageArticleAutoScroll);
+            if (!articleAutoScrollActive || articleUserHovered || !stageArticleTextEl) return;
+            const now = performance.now();
+            if (now < articleScrollPauseUntil) return;
+
+            const maxScroll = stageArticleTextEl.scrollHeight - stageArticleTextEl.clientHeight;
+            if (maxScroll <= 8) return;
+
+            const step = (articleScrollSpeed || 3) * 0.28;
+            stageArticleTextEl.scrollTop += step;
+
+            if (stageArticleTextEl.scrollTop >= maxScroll - 1) {
+                articleScrollPauseUntil = now + 2500;
+                setTimeout(() => {
+                    if (articleAutoScrollActive && !articleUserHovered && stageArticleTextEl) {
+                        stageArticleTextEl.scrollTo({ top: 0, behavior: "smooth" });
+                        articleScrollPauseUntil = performance.now() + 1500;
+                    }
+                }, 2200);
+            }
+        }
+        runStageArticleAutoScroll();
+        
+        setInterval(syncWithRustBackend, 250);
+        syncWithRustBackend();
+    </script>
+</body>
+</html>

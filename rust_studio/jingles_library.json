@@ -1,0 +1,44 @@
+[
+  {
+    "id": "alerte",
+    "label": "🚨 Alerte",
+    "file_path": "",
+    "media_type": "synth",
+    "volume": 85
+  },
+  {
+    "id": "soutien",
+    "label": "💜 Soutien",
+    "file_path": "",
+    "media_type": "synth",
+    "volume": 80
+  },
+  {
+    "id": "transition",
+    "label": "📢 Transition",
+    "file_path": "",
+    "media_type": "synth",
+    "volume": 75
+  },
+  {
+    "id": "bip",
+    "label": "🔇 Bip Censure",
+    "file_path": "",
+    "media_type": "synth",
+    "volume": 90
+  },
+  {
+    "id": "gong",
+    "label": "✊ Gong Militant",
+    "file_path": "",
+    "media_type": "synth",
+    "volume": 80
+  },
+  {
+    "id": "bass",
+    "label": "🎵 Drop Bass",
+    "file_path": "",
+    "media_type": "synth",
+    "volume": 85
+  }
+]

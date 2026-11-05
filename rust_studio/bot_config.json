@@ -1,0 +1,34 @@
+{
+  "auto_emergency": true,
+  "auto_pin_questions": false,
+  "tts_voice_enabled": false,
+  "tts_read_pinned": true,
+  "filter_blacklist": true,
+  "blacklist_words": "fdp, tg, ntm, connard, salope, batard, connerie",
+  "triggers": [
+    {
+      "enabled": true,
+      "keywords": "aide, urgence, secours, 119, 3919, plainte, subi",
+      "action": "emergency",
+      "action_param": "Grand Panneau Urgences"
+    },
+    {
+      "enabled": true,
+      "keywords": "!question, !temoignage",
+      "action": "pin",
+      "action_param": ""
+    },
+    {
+      "enabled": true,
+      "keywords": "!alerte, !sirene",
+      "action": "jingle",
+      "action_param": "alerte"
+    },
+    {
+      "enabled": true,
+      "keywords": "!soutien, !force, !coeur",
+      "action": "jingle",
+      "action_param": "soutien"
+    }
+  ]
+}

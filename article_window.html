@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📰 REVUE DE PRESSE & ARTICLES — Live TikTok</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #f8fafc;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            user-select: none;
+        }
+
+        #articleCard {
+            width: 100%;
+            max-width: 900px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background-color: rgba(15, 23, 42, 0.94);
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 18px 22px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+        }
+
+        .glow-effect {
+            box-shadow: 0 0 25px var(--glow-col, rgba(245, 158, 11, 0.45)), 0 12px 35px rgba(0, 0, 0, 0.8) !important;
+        }
+
+        /* En-tête : Source & Date */
+        .article-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            padding-bottom: 8px;
+            flex-shrink: 0;
+        }
+
+        .source-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.82rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #ffffff;
+            background-color: #dc2626;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            white-space: nowrap;
+        }
+
+        .article-date {
+            font-size: 0.78rem;
+            color: #94a3b8;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        /* Titre */
+        #articleTitle {
+            font-size: 1.45rem;
+            font-weight: 800;
+            line-height: 1.25;
+            color: #fbbf24;
+            margin-bottom: 12px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+            flex-shrink: 0;
+        }
+
+        /* Zone de défilement du corps */
+        .article-scroll-container {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+        }
+
+        .article-scroll-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        .article-scroll-container::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.25);
+            border-radius: 4px;
+        }
+
+        /* Image d'illustration */
+        #articleImageWrap {
+            width: 100%;
+            max-height: 280px;
+            border-radius: 8px;
+            overflow: hidden;
+            display: none;
+            background-color: #0b0f19;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            flex-shrink: 0;
+        }
+
+        #articleImage {
+            width: 100%;
+            height: 100%;
+            max-height: 280px;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* Corps de texte */
+        #articleText {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: #f1f5f9;
+            white-space: pre-line;
+            font-weight: 400;
+        }
+
+        #articleText p {
+            margin-bottom: 12px;
+        }
+
+        /* Pied de page discret */
+        .article-footer {
+            margin-top: 10px;
+            padding-top: 6px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 0.72rem;
+            color: #64748b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .hashtag-live {
+            color: #a855f7;
+            font-weight: 600;
+        }
+
+        /* Indicateur de pause au survol lors de l'auto-scroll */
+        .auto-scroll-hint {
+            font-size: 0.7rem;
+            color: #38bdf8;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div id="articleCard">
+        <div class="article-header">
+            <span class="source-badge" id="sourceBadge">📰 PRESSE & MÉDIAS</span>
+            <span class="article-date" id="articleDate"></span>
+        </div>
+
+        <h1 id="articleTitle">REVUE DE PRESSE & ACTUALITÉ</h1>
+
+        <div class="article-scroll-container" id="scrollContainer">
+            <div id="articleImageWrap">
+                <img id="articleImage" src="" alt="Illustration">
+            </div>
+            <div id="articleText">
+                Collez l'URL d'un article ou copiez votre texte dans la Télécommande pour l'afficher en direct sur le live.
+            </div>
+        </div>
+
+        <div class="article-footer">
+            <span class="hashtag-live">#BriserLeSilence • Revue de Presse</span>
+            <span id="scrollHint" class="auto-scroll-hint" style="display:none;">↕️ Défilement auto actif</span>
+        </div>
+    </div>
+
+    <script>
+        let lastSig = "";
+        let isAutoScrolling = false;
+        let scrollSpeed = 2;
+        let isUserHovered = false;
+        let isWaitingAtBottom = false;
+
+        const scrollContainer = document.getElementById("scrollContainer");
+        scrollContainer.addEventListener("mouseenter", () => { isUserHovered = true; });
+        scrollContainer.addEventListener("mouseleave", () => { isUserHovered = false; });
+
+        // Boucle d'auto-scroll fluide
+        function autoScrollLoop() {
+            if (isAutoScrolling && !isUserHovered && !isWaitingAtBottom) {
+                const max = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+                if (max > 10) {
+                    scrollContainer.scrollTop += scrollSpeed * 0.4;
+                    // Rebouclage doux si on atteint la fin
+                    if (scrollContainer.scrollTop >= max - 1) {
+                        isWaitingAtBottom = true;
+                        setTimeout(() => {
+                            if (isAutoScrolling && !isUserHovered) {
+                                scrollContainer.scrollTop = 0;
+                            }
+                            isWaitingAtBottom = false;
+                        }, 2500);
+                    }
+                }
+            }
+            requestAnimationFrame(autoScrollLoop);
+        }
+        requestAnimationFrame(autoScrollLoop);
+
+        function hexToRgba(hex, alpha) {
+            let c = hex.replace("#", "");
+            if (c.length === 3) c = c.split("").map(x => x + x).join("");
+            const r = parseInt(c.substring(0, 2), 16) || 15;
+            const g = parseInt(c.substring(2, 4), 16) || 23;
+            const b = parseInt(c.substring(4, 6), 16) || 42;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        async function pollState() {
+            try {
+                const res = await fetch("http://127.0.0.1:8765/state?t=" + Date.now(), { cache: "no-store" });
+                if (!res.ok) return;
+                const st = await res.json();
+                const art = st.article || {};
+
+                // Signature unique pour éviter les recalculs DOM inutiles
+                const sig = JSON.stringify(art);
+                if (sig === lastSig) return;
+                lastSig = sig;
+
+                // 1. Contenu
+                document.getElementById("sourceBadge").textContent = art.source || "📰 PRESSE & MÉDIAS";
+                document.getElementById("sourceBadge").style.backgroundColor = art.source_badge_color || "#dc2626";
+
+                document.getElementById("articleDate").textContent = art.date ? `📅 ${art.date}` : "";
+
+                const titleEl = document.getElementById("articleTitle");
+                titleEl.textContent = art.title || "REVUE DE PRESSE & ACTUALITÉ";
+                titleEl.style.fontSize = (art.font_size_title || 22) + "px";
+                titleEl.style.color = art.title_color || "#fbbf24";
+
+                const textEl = document.getElementById("articleText");
+                textEl.textContent = art.text || "";
+                textEl.style.fontSize = (art.font_size_text || 16) + "px";
+                textEl.style.color = art.text_color || "#f1f5f9";
+                textEl.style.textAlign = art.text_align || "left";
+
+                // 2. Image
+                const imgWrap = document.getElementById("articleImageWrap");
+                const imgEl = document.getElementById("articleImage");
+                if (art.show_image && art.image_url && art.image_url.trim().length > 5) {
+                    imgEl.src = art.image_url.trim();
+                    imgWrap.style.display = "block";
+                } else {
+                    imgWrap.style.display = "none";
+                }
+
+                // 3. Style & Personnalisation de la fenêtre
+                const card = document.getElementById("articleCard");
+                const opac = Math.max(0, Math.min(100, art.bg_opacity !== undefined ? art.bg_opacity : 92)) / 100;
+                card.style.backgroundColor = hexToRgba(art.bg_color || "#0f172a", opac);
+
+                const borderW = art.border_width !== undefined ? art.border_width : 2;
+                const borderCol = art.border_color || "#f59e0b";
+                card.style.border = `${borderW}px solid ${borderCol}`;
+                card.style.borderRadius = `${art.border_radius !== undefined ? art.border_radius : 12}px`;
+
+                if (art.glow) {
+                    card.classList.add("glow-effect");
+                    card.style.setProperty("--glow-col", hexToRgba(borderCol, 0.45));
+                } else {
+                    card.classList.remove("glow-effect");
+                }
+
+                // 4. Auto-Scroll
+                isAutoScrolling = !!art.auto_scroll;
+                scrollSpeed = art.scroll_speed || 3;
+                document.getElementById("scrollHint").style.display = isAutoScrolling ? "inline" : "none";
+
+            } catch (err) {
+                // Silencieux si serveur en redémarrage
+            }
+        }
+
+        setInterval(pollState, 250);
+        pollState();
+    </script>
+</body>
+</html>

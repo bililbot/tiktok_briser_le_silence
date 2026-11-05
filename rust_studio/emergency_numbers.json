@@ -1,0 +1,27 @@
+[
+  {
+    "enabled": true,
+    "number": "119",
+    "label": "ENFANCE EN DANGER (Gratuit & Anonyme 24h/24)"
+  },
+  {
+    "enabled": true,
+    "number": "3919",
+    "label": "VIOLENCES FEMMES INFO (Écoute & Orientation 24h/24)"
+  },
+  {
+    "enabled": true,
+    "number": "0 800 05 95 95",
+    "label": "COLLECTIF FÉMINISTE CONTRE LE VIOL (Soutien VSS)"
+  },
+  {
+    "enabled": true,
+    "number": "114",
+    "label": "URGENCE PAR SMS (Si vous ne pouvez pas parler)"
+  },
+  {
+    "enabled": true,
+    "number": "3114",
+    "label": "PRÉVENTION DÉTRESSE & SUICIDE (Gratuit 24h/24)"
+  }
+]

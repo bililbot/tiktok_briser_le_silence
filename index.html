@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BRISER LE SILENCE — Studio Live Switcher & Générique TikTok</title>
+    <!-- Polices Street Art, Stencil & Impact Militant -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Black+Ops+One&family=Permanent+Marker&family=Rubik+Glitch&family=Space+Grotesk:wght@500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0d0d0f;
+            --panel-bg: #16171b;
+            --panel-border: #2a2c35;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            /* Couleurs des 3 branches */
+            --vss-primary: #a855f7;
+            --vss-secondary: #f59e0b;
+            --pol-primary: #ef4444;
+            --pol-secondary: #fbbf24;
+            --mus-primary: #f97316;
+            --mus-secondary: #eab308;
+            --active-primary: #f97316;
+            --active-secondary: #eab308;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Space Grotesk', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+
+        /* =========================================================
+           MODE CAPTURE PURE (POUR TIKTOK LIVE STUDIO)
+           ========================================================= */
+        body.capture-mode {
+            background: #000;
+            justify-content: center;
+            align-items: center;
+        }
+        body.capture-mode .control-panel {
+            display: none !important;
+        }
+        body.capture-mode .preview-area {
+            width: 100vw;
+            height: 100vh;
+            padding: 0;
+        }
+
+        /* =========================================================
+           ZONE GAUCHE : APERÇU LIVE 9:16 (CANVAS TIKTOK)
+           ========================================================= */
+        .preview-area {
+            flex: 0 0 auto;
+            width: 560px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at center, #1b1c22 0%, #09090b 100%);
+            border-right: 1px solid var(--panel-border);
+            padding: 12px;
+            position: relative;
+        }
+
+        .tiktok-stage-wrapper {
+            position: relative;
+            height: calc(100vh - 36px);
+            aspect-ratio: 9 / 16;
+            max-height: 960px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85), 0 0 0 2px #2c2d35;
+            background: #141414;
+            user-select: none;
+        }
+
+        body.capture-mode .tiktok-stage-wrapper {
+            height: 100vh;
+            max-height: 100vh;
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        /* Image de fond 9:16 */
+        .stage-bg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+            transition: opacity 0.35s ease, filter 0.35s ease;
+        }
+
+        /* Effet teinte d'ambiance légère selon la branche */
+        .stage-tint {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            pointer-events: none;
+            transition: background 0.4s ease;
+        }
+
+        /* =========================================================
+           CERCLE CAMÉRA (EN HAUT À DROITE COMME SUR TIKTOK STUDIO)
+           ========================================================= */
+        .cam-slot {
+            position: absolute;
+            top: 3.5%;
+            right: 6.5%;
+            width: 39%;
+            aspect-ratio: 1 / 1;
+            border-radius: 50%;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+
+        .cam-slot.show-ring {
+            border: 4px solid var(--active-primary);
+            box-shadow: 0 0 22px var(--active-primary), inset 0 0 15px rgba(0,0,0,0.7);
+        }
+
+        .cam-slot.show-guide {
+            border: 2px dashed rgba(255, 255, 255, 0.35);
+            background: rgba(0, 0, 0, 0.25);
+        }
+
+        .cam-slot-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255, 255, 255, 0.55);
+            text-align: center;
+            padding: 8px;
+            display: none;
+        }
+        .cam-slot.show-guide .cam-slot-label {
+            display: block;
+        }
+
+        .cam-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+            display: none;
+        }
+        .cam-slot.webcam-active .cam-video {
+            display: block;
+        }
+        .cam-slot.webcam-active .cam-slot-label {
+            display: none;
+        }
+
+        /* Badge EN DIRECT sous le cercle caméra ou en haut à gauche */
+        .live-branch-pill {
+            position: absolute;
+            top: 23.5%;
+            left: 5%;
+            z-index: 12;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 5px 12px;
+            border-radius: 6px;
+            background: rgba(12, 12, 14, 0.88);
+            border-left: 4px solid var(--active-primary);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.7);
+            font-weight: 800;
+            font-size: 0.76rem;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #fff;
+            backdrop-filter: blur(6px);
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--active-primary);
+            box-shadow: 0 0 8px var(--active-primary);
+            animation: pulseDot 1.4s infinite;
+        }
+
+        @keyframes pulseDot {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.35); opacity: 0.55; }
+        }
+
+        /* =========================================================
+           PLAQUE DE SWITCH SOUS "BRISER LE SILENCE" (ZONE 61% - 76%)
+           ========================================================= */
+        .sub-graff-patch {
+            position: absolute;
+            top: 60.5%;
+            left: 3%;
+            right: 3%;
+            min-height: 14.5%;
+            z-index: 15;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 8px 10px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        /* Texture béton sombre quand on masque le texte original "UNDERGROUND INSURRECTION" */
+        .sub-graff-patch.concrete-cover {
+            background: 
+                radial-gradient(ellipse at center, rgba(28, 28, 30, 0.97) 40%, rgba(18, 18, 20, 0.92) 85%, rgba(18, 18, 20, 0) 100%);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.85);
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .sub-graff-line1 {
+            font-family: 'Anton', Impact, sans-serif;
+            font-size: 1.85rem;
+            line-height: 1.05;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--active-secondary);
+            text-shadow: 
+                -2px -2px 0 #000,
+                 2px -2px 0 #000,
+                -2px  2px 0 #000,
+                 3px  3px 0 #000,
+                 0px  5px 12px rgba(0,0,0,0.95);
+            transform: rotate(-1.2deg);
+            margin-bottom: 4px;
+        }
+
+        .sub-graff-line2 {
+            font-family: 'Permanent Marker', cursive;
+            font-size: 1.32rem;
+            line-height: 1.1;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #ffffff;
+            text-shadow: 
+                -2px -2px 0 #000,
+                 2px -2px 0 #000,
+                -2px  2px 0 #000,
+                 2px  3px 0 #000,
+                 0px  4px 10px rgba(0,0,0,0.95);
+            transform: rotate(0.6deg);
+        }
+
+        /* Surlignage coup de bombe sous le titre */
+        .spray-underline {
+            width: 78%;
+            height: 4px;
+            margin-top: 6px;
+            background: linear-gradient(90deg, transparent 0%, var(--active-primary) 20%, #fff 50%, var(--active-primary) 80%, transparent 100%);
+            border-radius: 4px;
+            box-shadow: 0 0 10px var(--active-primary);
+        }
+
+        /* =========================================================
+           ZONE BASSE DU MUR (79% -> 98.5%) : WIDGETS DYNAMIQUES
+           ========================================================= */
+        .bottom-live-deck {
+            position: absolute;
+            top: 79.2%;
+            bottom: 1.5%;
+            left: 3.5%;
+            right: 3.5%;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            gap: 5px;
+        }
+
+        /* Carte Sujet du moment / Question du Live */
+        .topic-card {
+            background: rgba(14, 14, 18, 0.90);
+            border: 1.5px solid rgba(255, 255, 255, 0.14);
+            border-left: 5px solid var(--active-primary);
+            border-radius: 8px;
+            padding: 9px 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+        }
+
+        .topic-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.68rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--active-secondary);
+            margin-bottom: 3px;
+        }
+
+        .topic-card-body {
+            font-size: 0.98rem;
+            font-weight: 800;
+            line-height: 1.22;
+            color: #ffffff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .topic-card-sub {
+            font-size: 0.75rem;
+            color: #d1d5db;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        /* Tags / Badges Militants ou Styles Musicaux */
+        .tags-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            justify-content: center;
+        }
+
+        .stencil-tag {
+            background: rgba(0, 0, 0, 0.82);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #f3f4f6;
+            font-family: 'Anton', sans-serif;
+            font-size: 0.72rem;
+            letter-spacing: 1px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .stencil-tag.highlight {
+            background: var(--active-primary);
+            border-color: #fff;
+            color: #fff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.6);
+        }
+
+        /* =========================================================
+           WIDGET MUSIQUE : SPOTIFY LIVE & VISUALISEUR SPECTRE (BRANCHE 3)
+           ========================================================= */
+        .music-hud {
+            display: none;
+            background: rgba(12, 12, 15, 0.94);
+            border: 1.5px solid rgba(249, 115, 22, 0.55);
+            border-radius: 8px;
+            padding: 8px 10px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.92);
+        }
+        .music-hud.active {
+            display: block;
+        }
+
+        .music-now-playing {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .spotify-cover {
+            width: 48px;
+            height: 48px;
+            border-radius: 6px;
+            object-fit: cover;
+            border: 1.5px solid var(--active-primary);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.8);
+            flex-shrink: 0;
+            background: #1f2028;
+            display: none;
+        }
+        .spotify-cover.visible {
+            display: block;
+        }
+
+        .music-track-info {
+            overflow: hidden;
+            flex: 1;
+        }
+
+        .music-label {
+            font-size: 0.60rem;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #22c55e;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .music-title {
+            font-family: 'Anton', sans-serif;
+            font-size: 1.04rem;
+            letter-spacing: 0.8px;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.15;
+        }
+
+        .music-artist-album {
+            font-size: 0.74rem;
+            font-weight: 700;
+            color: #fbbf24;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 1px;
+        }
+
+        .music-genre-badge {
+            background: var(--mus-primary);
+            color: #fff;
+            font-family: 'Black Ops One', sans-serif;
+            font-size: 0.65rem;
+            padding: 3px 7px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+
+        #visualizerCanvas {
+            width: 100%;
+            height: 28px;
+            display: block;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.55);
+        }
+
+        /* =========================================================
+           BANDEAU DÉFILANT TOUT EN BAS (NUMÉROS D'URGENCE / INFOS)
+           ========================================================= */
+        .ticker-bar {
+            background: rgba(10, 10, 12, 0.95);
+            border-top: 2px solid var(--active-primary);
+            border-radius: 6px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+        }
+
+        .ticker-badge {
+            background: var(--active-primary);
+            color: #fff;
+            font-weight: 800;
+            font-size: 0.66rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            padding: 0 8px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            z-index: 2;
+            flex-shrink: 0;
+        }
+
+        .ticker-track {
+            white-space: nowrap;
+            display: inline-block;
+            padding-left: 100%;
+            animation: tickerMove 24s linear infinite;
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: #f3f4f6;
+        }
+
+        @keyframes tickerMove {
+            0% { transform: translate3d(0, 0, 0); }
+            100% { transform: translate3d(-100%, 0, 0); }
+        }
+
+        /* =========================================================
+           PANNEAU DE DROITE : RÉGIE & OUTILS DE CONTRÔLE EN DIRECT
+           ========================================================= */
+        .control-panel {
+            flex: 1;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 20px 26px;
+            background: var(--panel-bg);
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 14px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .panel-title h1 {
+            font-family: 'Anton', sans-serif;
+            font-size: 1.55rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #fff;
+        }
+
+        .panel-title p {
+            font-size: 0.84rem;
+            color: var(--text-muted);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: #252730;
+            color: #fff;
+            border: 1px solid #3a3d4a;
+            padding: 8px 14px;
+            border-radius: 7px;
+            font-family: inherit;
+            font-weight: 700;
+            font-size: 0.82rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            background: #323542;
+            border-color: #525668;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #ea580c, #dc2626);
+            border-color: #f97316;
+        }
+        .btn-primary:hover {
+            filter: brightness(1.12);
+        }
+
+        /* Grille des 3 Branches (Gros boutons de Switch Direct) */
+        .branch-switcher-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .branch-btn {
+            background: #1e2028;
+            border: 2px solid #2e313d;
+            border-radius: 10px;
+            padding: 14px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.22s ease;
+            color: var(--text-main);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .branch-btn:hover {
+            transform: translateY(-2px);
+            border-color: #4b5063;
+        }
+
+        .branch-btn.active[data-branch="vss"] {
+            border-color: var(--vss-primary);
+            background: linear-gradient(145deg, rgba(168, 85, 247, 0.22), #1e2028);
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.25);
+        }
+        .branch-btn.active[data-branch="politique"] {
+            border-color: var(--pol-primary);
+            background: linear-gradient(145deg, rgba(239, 68, 68, 0.22), #1e2028);
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.25);
+        }
+        .branch-btn.active[data-branch="musique"] {
+            border-color: var(--mus-primary);
+            background: linear-gradient(145deg, rgba(249, 115, 22, 0.22), #1e2028);
+            box-shadow: 0 0 20px rgba(249, 115, 22, 0.25);
+        }
+
+        .branch-key {
+            display: inline-block;
+            font-size: 0.68rem;
+            font-weight: 800;
+            padding: 2px 7px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.1);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        .branch-btn h3 {
+            font-size: 1.02rem;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .branch-btn p {
+            font-size: 0.76rem;
+            color: var(--text-muted);
+            line-height: 1.3;
+        }
+
+        /* Sections de configuration */
+        .control-box {
+            background: #1d1f26;
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .control-box h2 {
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 12px;
+            color: #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .form-group.full {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="text"], textarea, select {
+            background: #121317;
+            border: 1px solid #323542;
+            color: #fff;
+            padding: 9px 12px;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.88rem;
+        }
+        input[type="text"]:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--active-primary);
+        }
+
+        /* Boutons de sujets rapides (Presets) */
+        .preset-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .chip {
+            background: #282b36;
+            border: 1px solid #3c4050;
+            color: #e5e7eb;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .chip:hover {
+            background: var(--active-primary);
+            border-color: #fff;
+            color: #fff;
+        }
+
+        /* Lecteur de musique dans la régie */
+        .playlist-box {
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .dropzone {
+            border: 2px dashed #454959;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .dropzone:hover {
+            border-color: var(--mus-primary);
+            color: #fff;
+            background: rgba(249, 115, 22, 0.08);
+        }
+
+        .track-list {
+            max-height: 130px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .track-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 7px 10px;
+            background: #14151a;
+            border: 1px solid #272932;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .track-item.playing {
+            border-color: var(--mus-primary);
+            background: rgba(249, 115, 22, 0.15);
+            font-weight: 700;
+        }
+
+        /* Sélecteur de fonds 9:16 */
+        .bg-thumbs {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        .bg-thumb-card {
+            background: #14151a;
+            border: 2px solid #2c2f3b;
+            border-radius: 8px;
+            padding: 6px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .bg-thumb-card.active {
+            border-color: var(--active-primary);
+            box-shadow: 0 0 12px rgba(249, 115, 22, 0.35);
+        }
+        .bg-thumb-card img {
+            width: 100%;
+            aspect-ratio: 9 / 16;
+            object-fit: cover;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            background: #09090b;
+        }
+        .bg-thumb-card span {
+            font-size: 0.7rem;
+            font-weight: 700;
+            display: block;
+            color: #d1d5db;
+        }
+
+        /* Bouton flottant pour quitter le mode capture */
+        .exit-capture-btn {
+            display: none;
+            position: fixed;
+            top: 14px;
+            right: 14px;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+        body.capture-mode .exit-capture-btn:hover {
+            opacity: 1;
+        }
+        body.capture-mode .exit-capture-btn {
+            display: block;
+            opacity: 0.2;
+            transition: opacity 0.2s;
+        }
+    </style>
+</head>
+<body>
+
+    <button class="exit-capture-btn" onclick="toggleCaptureMode()">⚙️ Quitter le Mode Capture (Touche F)</button>
+
+    <!-- =========================================================
+         ÉCRAN TIKTOK LIVE 9:16 (À CAPTURER OU EXPORTER)
+         ========================================================= -->
+    <div class="preview-area">
+        <div class="tiktok-stage-wrapper" id="tiktokStage">
+            <!-- Image de fond -->
+            <img id="stageBg" class="stage-bg" src="assets/bg_branche3_musique.jpg" alt="Fond Briser le Silence">
+            <div id="stageTint" class="stage-tint"></div>
+
+            <!-- Emplacement Caméra Ronde (Top-Right comme dans ton TikTok Studio) -->
+            <div id="camSlot" class="cam-slot show-ring">
+                <span class="cam-slot-label">Emplacement<br>Caméra TikTok</span>
+                <video id="webcamVideo" class="cam-video" autoplay playsinline muted></video>
+            </div>
+
+            <!-- Badge Branche Active -->
+            <div class="live-branch-pill" id="liveBranchPill">
+                <span class="live-dot"></span>
+                <span id="pillText">LIVE • UNDERGROUND INSURRECTION</span>
+            </div>
+
+            <!-- ZONE SOUS LE GRAFF "BRISER LE SILENCE" (Pour switcher en direct !) -->
+            <div id="subGraffPatch" class="sub-graff-patch">
+                <div id="subGraffLine1" class="sub-graff-line1">UNDERGROUND</div>
+                <div id="subGraffLine2" class="sub-graff-line2">INSURRECTION</div>
+                <div class="spray-underline"></div>
+            </div>
+
+            <!-- ZONE DU BAS (SUJET DU DÉBAT / NUMÉROS D'AIDE / LECTEUR MUSIQUE) -->
+            <div class="bottom-live-deck">
+                <!-- Carte Sujet / Question / Thème -->
+                <div class="topic-card" id="topicCard">
+                    <div class="topic-card-header">
+                        <span id="topicHeaderLabel">🔥 THÈME DU LIVE EN COURS</span>
+                        <span id="topicHeaderRight">#BriserLeSilence</span>
+                    </div>
+                    <div class="topic-card-body" id="topicMainText">
+                        SONS ENGAGÉS : PUNK • TECHNO • HARDCORE • HIP-HOP • METAL
+                    </div>
+                    <div class="topic-card-sub" id="topicSubText">
+                        Des morceaux qui portent nos luttes : contre l'inceste/VSS, antifa & féministe
+                    </div>
+                </div>
+
+                <!-- Lecteur & Visualiseur Audio Temps Réel (Sans mention Spotify) -->
+                <div class="music-hud active" id="musicHud">
+                    <div class="music-now-playing">
+                        <img id="spotifyCoverImg" class="spotify-cover" src="" alt="Pochette Album">
+                        <div class="music-track-info">
+                            <div class="music-title" id="musicTrackTitle">UNDERGROUND INSURRECTION</div>
+                            <div class="music-artist-album" id="musicArtistAlbum">En attente de lecture...</div>
+                        </div>
+                        <span class="music-genre-badge" id="musicGenreBadge">PUNK / HARDCORE</span>
+                    </div>
+                    <canvas id="visualizerCanvas" width="380" height="28"></canvas>
+                </div>
+
+                <!-- Tags Pochoir -->
+                <div class="tags-row" id="tagsRow">
+                    <span class="stencil-tag highlight">PUNK</span>
+                    <span class="stencil-tag">TECHNO</span>
+                    <span class="stencil-tag">HARDCORE</span>
+                    <span class="stencil-tag">HIP-HOP</span>
+                    <span class="stencil-tag">METAL</span>
+                    <span class="stencil-tag">GRIME / DUB</span>
+                </div>
+
+                <!-- Bandeau défilant d'information / Numéros d'écoute -->
+                <div class="ticker-bar">
+                    <div class="ticker-badge" id="tickerBadge">INFO LIVE</div>
+                    <div class="ticker-track" id="tickerText">
+                        ✊ BIENVENUE SUR LE LIVE « BRISER LE SILENCE » • 3 BRANCHES : SURVIVANT·E·S INCESTE & VSS | POLITIQUE ANTICAPITALISTE, ANTIFA & FÉMINISTE | MUSIQUE LIVE UNDERGROUND INSURRECTION • PARTAGEZ LE LIVE !
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================
+         PANNEAU DE CONTRÔLE (TÉLÉCOMMANDE EN DIRECT)
+         ========================================================= -->
+    <div class="control-panel">
+        <div class="panel-header">
+            <div class="panel-title">
+                <h1>🎛️ RÉGIE LIVE — « BRISER LE SILENCE »</h1>
+                <p>Change de branche, de fond ou de sujet en 1 clic pendant ton Live TikTok</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn" onclick="exportBannerOnlyPNG()" title="Télécharge uniquement la plaque sous BRISER LE SILENCE en PNG transparent">
+                    🏷️ Exporter Bandeau PNG
+                </button>
+                <button class="btn" onclick="exportFullStagePNG()" title="Télécharge l'image 9:16 complète pour TikTok Studio">
+                    📸 Exporter Fond 9:16
+                </button>
+                <button class="btn btn-primary" onclick="toggleCaptureMode()">
+                    📺 Mode Plein Écran TikTok (F)
+                </button>
+            </div>
+        </div>
+
+        <!-- 1. SWITCHER DES 3 BRANCHES EN 1 CLIC -->
+        <div class="control-box">
+            <h2>
+                <span>⚡ 1. Switcher de Branche en Direct (Touches Clavier 1, 2, 3)</span>
+                <span style="font-size:0.75rem; color:var(--text-muted);">Clique pour basculer toute l'interface instantanément</span>
+            </h2>
+            <div class="branch-switcher-grid">
+                <button class="branch-btn" data-branch="vss" onclick="switchBranch('vss')">
+                    <span class="branch-key">Touche 1 • Branche 1</span>
+                    <h3 style="color:#c084fc;">💜 Inceste & VSS</h3>
+                    <p>Parole aux survivant·e·s, écoute bienveillante, briser le tabou & numéros d'aide (119 / 3919).</p>
+                </button>
+
+                <button class="branch-btn" data-branch="politique" onclick="switchBranch('politique')">
+                    <span class="branch-key">Touche 2 • Branche 2</span>
+                    <h3 style="color:#f87171;">✊ Politique Militante</h3>
+                    <p>Débats anticapitalistes, antifascistes et féministes. Luttes sociales & riposte populaire.</p>
+                </button>
+
+                <button class="branch-btn active" data-branch="musique" onclick="switchBranch('musique')">
+                    <span class="branch-key">Touche 3 • Branche 3</span>
+                    <h3 style="color:#fb923c;">🎸 Underground Insurrection</h3>
+                    <p>Musique Live engagée (Punk, Techno, Hardcore, Hip-Hop, Metal) sur les thèmes du live.</p>
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. PERSONNALISATION DE LA ZONE SOUS "BRISER LE SILENCE" & SUJET -->
+        <div class="control-box">
+            <h2>
+                <span>✍️ 2. Sujet du Débat en Direct & Texte Personnalisé sous le Graff</span>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; text-transform:none;">
+                    <input type="checkbox" id="togglePatchCover" onchange="updateStage()">
+                    Remplacer le graff du bas par un titre personnalisé
+                </label>
+            </h2>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Sous-Titre Graff Personnalisé Ligne 1</label>
+                    <input type="text" id="inputLine1" value="UNDERGROUND" oninput="document.getElementById('togglePatchCover').checked=true; updateStage()">
+                </div>
+                <div class="form-group">
+                    <label>Sous-Titre Graff Personnalisé Ligne 2</label>
+                    <input type="text" id="inputLine2" value="INSURRECTION" oninput="document.getElementById('togglePatchCover').checked=true; updateStage()">
+                </div>
+
+                <div class="form-group full">
+                    <label>Sujet principal affiché en bas de l'écran (Question du jour / Thème)</label>
+                    <input type="text" id="inputTopicMain" value="SONS ENGAGÉS : PUNK • TECHNO • HARDCORE • HIP-HOP • METAL" oninput="updateStage()">
+                    <div class="preset-chips" id="presetChipsContainer">
+                        <!-- Rempli dynamiquement selon la branche -->
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Sous-texte / Consigne Chat</label>
+                    <input type="text" id="inputTopicSub" value="Des morceaux qui portent nos luttes : contre l'inceste/VSS, antifa & féministe" oninput="updateStage()">
+                </div>
+
+                <div class="form-group">
+                    <label>Texte du Bandeau Défilant (Tout en bas)</label>
+                    <input type="text" id="inputTicker" value="✊ BIENVENUE SUR LE LIVE « BRISER LE SILENCE » • 3 BRANCHES : SURVIVANT·E·S INCESTE & VSS | POLITIQUE ANTICAPITALISTE, ANTIFA & FÉMINISTE | MUSIQUE LIVE UNDERGROUND INSURRECTION" oninput="updateStage()">
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. CHOIX DE L'IMAGE DE FOND & CAMÉRA -->
+        <div class="control-box">
+            <h2>
+                <span>🖼️ 3. Choix du Fond 9:16 & Anneau Caméra</span>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <label style="display:flex; align-items:center; gap:5px; cursor:pointer; text-transform:none;">
+                        <input type="checkbox" id="toggleCamRing" checked onchange="updateCamOptions()">
+                        Anneau lumineux Caméra
+                    </label>
+                    <button class="btn" style="padding:4px 10px; font-size:0.74rem;" onclick="toggleLocalWebcam()">
+                        📷 Activer Webcam ici (Optionnel)
+                    </button>
+                </div>
+            </h2>
+            <div class="bg-thumbs">
+                <div class="bg-thumb-card" id="thumb-vss" onclick="selectBackground('assets/bg_branche1_vss.png', 'thumb-vss', false)">
+                    <img src="assets/bg_branche1_vss.png" onerror="this.src='assets/bg_branche3_musique.jpg'" alt="Fond Branche 1 VSS">
+                    <span>Fond 1 : Inceste & VSS</span>
+                </div>
+                <div class="bg-thumb-card" id="thumb-pol" onclick="selectBackground('assets/bg_branche2_politique.png', 'thumb-pol', false)">
+                    <img src="assets/bg_branche2_politique.png" onerror="this.src='assets/bg_branche3_musique.jpg'" alt="Fond Branche 2 Politique">
+                    <span>Fond 2 : Front Militant</span>
+                </div>
+                <div class="bg-thumb-card active" id="thumb-mus" onclick="selectBackground('assets/bg_branche3_musique.jpg', 'thumb-mus', true)">
+                    <img src="assets/bg_branche3_musique.jpg" alt="Fond Branche 3 Musique">
+                    <span>Fond 3 : Ton Image Actuelle</span>
+                </div>
+                <div class="bg-thumb-card" id="thumb-base" onclick="selectBackground('assets/bg_base_modulable.png', 'thumb-base', true)">
+                    <img src="assets/bg_base_modulable.png" onerror="this.src='assets/bg_branche3_musique.jpg'" alt="Fond Base Modulable">
+                    <span>Fond 4 : Mur Vierge Modulable</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. PLATINE MUSICALE "UNDERGROUND INSURRECTION" -->
+        <div class="control-box">
+            <h2>
+                <span>🎵 4. Platine Live « Underground Insurrection » (Lecteur & Visualiseur Audio)</span>
+                <label style="display:flex; align-items:center; gap:5px; cursor:pointer; text-transform:none;">
+                    <input type="checkbox" id="toggleMusicHud" checked onchange="toggleMusicBox()">
+                    Afficher le lecteur sur le Live
+                </label>
+            </h2>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Titre du morceau en cours</label>
+                    <input type="text" id="inputTrackTitle" value="UNDERGROUND INSURRECTION — SESSION LIVE" oninput="updateMusicInfo()">
+                </div>
+                <div class="form-group">
+                    <label>Style & Thème Militant du morceau</label>
+                    <div style="display:flex; gap:6px;">
+                        <select id="selectMusicGenre" onchange="updateMusicInfo()" style="flex:1;">
+                            <option value="PUNK / HARDCORE">PUNK / HARDCORE</option>
+                            <option value="TECHNO / TRIBE">TECHNO / TRIBE</option>
+                            <option value="HIP-HOP ENGAGÉ">HIP-HOP ENGAGÉ</option>
+                            <option value="METAL / INDUS">METAL / INDUS</option>
+                            <option value="GRIME / DUB">GRIME / DUB</option>
+                            <option value="ACOUSTIQUE / SLAM">ACOUSTIQUE / SLAM</option>
+                        </select>
+                        <select id="selectMusicTheme" onchange="updateMusicInfo()" style="flex:1;">
+                            <option value="🎵 THÈME : BRISER LE SILENCE (VSS / INCESTE)">Thème : Inceste & VSS</option>
+                            <option value="🎵 THÈME : ANTIFA & RÉSISTANCE">Thème : Antifascisme</option>
+                            <option value="🎵 THÈME : LUTTE FÉMINISTE">Thème : Féminisme</option>
+                            <option value="🎵 THÈME : ANTICAPITALISME">Thème : Anticapitalisme</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="playlist-box">
+                <input type="file" id="audioFileInput" accept="audio/*" multiple style="display:none;" onchange="handleAudioFiles(this.files)">
+                <div class="dropzone" onclick="document.getElementById('audioFileInput').click()"
+                     ondragover="event.preventDefault()"
+                     ondrop="event.preventDefault(); handleAudioFiles(event.dataTransfer.files);">
+                    📂 <strong>Clique ici ou glisse tes morceaux MP3 / WAV</strong> d'Underground Insurrection pour les jouer en direct avec le spectre audio !
+                </div>
+                <audio id="audioPlayer" controls style="width:100%; height:36px;"></audio>
+                <div class="track-list" id="trackList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================
+        // DONNÉES DES 3 BRANCHES DE LA CHAÎNE TIKTOK
+        // =========================================================
+        const BRANCH_DATA = {
+            vss: {
+                pill: "LIVE • SURVIVANT·E·S INCESTE & VSS",
+                line1: "PAROLE AUX SURVIVANT·E·S",
+                line2: "STOP INCESTE & VSS",
+                headerLabel: "💜 ÉCOUTE, SOUTIEN & PAROLE LIBRE",
+                headerRight: "#OnVousCroit",
+                topicMain: "BRISER L'OMERTA SUR L'INCESTE ET LES VIOLENCES SEXUELLES",
+                topicSub: "Espace sécurisé & bienveillant — Aucun jugement toléré dans le chat",
+                tickerBadge: "URGENCE & ÉCOUTE",
+                ticker: "📞 NUMÉROS D'AIDE GRATUITS & ANONYMES : 119 (Enfance en danger 24h/24) • 3919 (Violences Femmes Info) • 0 800 05 95 95 (Collectif Féministe Contre le Viol) • SMS au 114 • LA HONTE DOIT CHANGER DE CAMP 💜",
+                tags: ["CROIRE LES VICTIMES", "STOP INCESTE", "FIN DE L'IMPUNITÉ", "ÉCOUTE & SOUTIEN", "PROTECTION DES ENFANTS"],
+                primary: "#a855f7",
+                secondary: "#fbbf24",
+                tint: "radial-gradient(circle at 50% 65%, rgba(168, 85, 247, 0.16), transparent 70%)",
+                defaultBg: "assets/bg_branche1_vss.png",
+                thumbId: "thumb-vss",
+                showMusic: false,
+                presets: [
+                    "Témoignages & Écoute : Vous n'êtes plus seul·e·s",
+                    "Briser le silence dans la famille : comment reconstruire sa vie ?",
+                    "Comprendre l'amnésie traumatique et le mécanisme de sidération",
+                    "Impunité des agresseurs : que fait la justice ?",
+                    "Comment soutenir et croire un·e proche victime d'inceste ou de VSS ?"
+                ]
+            },
+            politique: {
+                pill: "LIVE • FRONT MILITANT & DÉBATS",
+                line1: "FRONT MILITANT",
+                line2: "ANTIFA • FÉMINISTE • ANTICAPITALISTE",
+                headerLabel: "✊ DÉBAT POLITIQUE & ÉDUCATION POPULAIRE",
+                headerRight: "#RiposteSociale",
+                topicMain: "CAPITALISME, PATRIARCAT & FASCISME : MÊME COMBAT, MÊME RIPOSTE",
+                topicSub: "Débat ouvert dans le respect de nos luttes d'émancipation",
+                tickerBadge: "FRONT MILITANT",
+                ticker: "✊ NI PATRIE, NI PATRON, NI PATRIARCAT • FÉMINISME RADICAL • ANTIFASCISME • JUSTICE SOCIALE & ANTICAPITALISME • ORGANISONS LA SOLIDARITÉ POPULAIRE !",
+                tags: ["ANTIFA", "FÉMINISME", "ANTICAPITALISTE", "JUSTICE SOCIALE", "SOLIDARITÉ", "RIPOSTE"],
+                primary: "#ef4444",
+                secondary: "#fbbf24",
+                tint: "radial-gradient(circle at 50% 65%, rgba(239, 68, 68, 0.16), transparent 70%)",
+                defaultBg: "assets/bg_branche2_politique.png",
+                thumbId: "thumb-pol",
+                showMusic: false,
+                presets: [
+                    "Pourquoi la lutte féministe est indissociable de l'anticapitalisme ?",
+                    "Montée de l'extrême droite : comment organiser la riposte antifasciste ?",
+                    "Destruction des services publics : qui paie l'addition du capital ?",
+                    "Convergence des luttes : relier écologie, féminisme et justice sociale",
+                    "Décryptage de l'actu politique de la semaine sans filtre"
+                ]
+            },
+            musique: {
+                pill: "LIVE • UNDERGROUND INSURRECTION",
+                line1: "UNDERGROUND",
+                line2: "INSURRECTION",
+                headerLabel: "🔥 SESSION MUSIQUE ENGAGÉE EN DIRECT",
+                headerRight: "#UndergroundInsurrection",
+                topicMain: "SONS ENGAGÉS : PUNK • TECHNO • HARDCORE • HIP-HOP • METAL",
+                topicSub: "Des morceaux qui portent nos combats : VSS, Antifa, Féminisme & Justice sociale",
+                tickerBadge: "MUSIQUE LIVE",
+                ticker: "🔊 UNDERGROUND INSURRECTION — LA BANDE-SON DE NOS LUTTES • PUNK • TECHNO • HARDCORE • HIP-HOP • METAL • GRIME • DUB • MONTEZ LE SON ET PARTAGEZ LE LIVE !",
+                tags: ["PUNK", "TECHNO", "HARDCORE", "HIP-HOP", "METAL", "GRIME / DUB"],
+                primary: "#f97316",
+                secondary: "#eab308",
+                tint: "radial-gradient(circle at 50% 65%, rgba(249, 115, 22, 0.14), transparent 70%)",
+                defaultBg: "assets/bg_branche3_musique.jpg",
+                thumbId: "thumb-mus",
+                showMusic: true,
+                presets: [
+                    "Session spéciale morceaux contre l'inceste et les VSS",
+                    "Set Punk / Hardcore / Techno Antifasciste & Anticapitaliste",
+                    "Hymnes Féministes & Insurrectionnels : écoutez les paroles !",
+                    "Création & écoute d'inédits d'Underground Insurrection en direct",
+                    "Réactions aux textes engagés avec le chat"
+                ]
+            }
+        };
+
+        let currentBranch = 'musique';
+
+        // =========================================================
+        // CHANGEMENT DE BRANCHE EN 1 CLIC
+        // =========================================================
+        function switchBranch(branchKey) {
+            currentBranch = branchKey;
+            const data = BRANCH_DATA[branchKey];
+
+            // Mettre à jour les couleurs CSS
+            document.documentElement.style.setProperty('--active-primary', data.primary);
+            document.documentElement.style.setProperty('--active-secondary', data.secondary);
+            document.getElementById('stageTint').style.background = data.tint;
+
+            // Boutons actifs
+            document.querySelectorAll('.branch-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.branch === branchKey);
+            });
+
+            // Remplir les champs du formulaire
+            document.getElementById('inputLine1').value = data.line1;
+            document.getElementById('inputLine2').value = data.line2;
+            document.getElementById('inputTopicMain').value = data.topicMain;
+            document.getElementById('inputTopicSub').value = data.topicSub;
+            document.getElementById('inputTicker').value = data.ticker;
+
+            // Par défaut on laisse visible le vrai graff peint sur l'image de la branche
+            document.getElementById('togglePatchCover').checked = false;
+
+            // Mettre à jour l'image de fond
+            const imgEl = document.getElementById('stageBg');
+            imgEl.src = data.defaultBg;
+
+            document.querySelectorAll('.bg-thumb-card').forEach(c => c.classList.remove('active'));
+            const thumb = document.getElementById(data.thumbId);
+            if (thumb) thumb.classList.add('active');
+
+            // Afficher/Masquer le lecteur musical
+            document.getElementById('toggleMusicHud').checked = data.showMusic;
+            toggleMusicBox();
+
+            // Générer les tags
+            const tagsRow = document.getElementById('tagsRow');
+            tagsRow.innerHTML = data.tags.map((t, idx) =>
+                `<span class="stencil-tag ${idx === 0 ? 'highlight' : ''}">${t}</span>`
+            ).join('');
+
+            // Générer les boutons de sujets rapides (Presets)
+            const presetsDiv = document.getElementById('presetChipsContainer');
+            presetsDiv.innerHTML = data.presets.map(p =>
+                `<span class="chip" onclick="setQuickTopic('${p.replace(/'/g, "\\'")}')">${p}</span>`
+            ).join('');
+
+            // Textes fixes de la branche
+            document.getElementById('pillText').textContent = data.pill;
+            document.getElementById('topicHeaderLabel').textContent = data.headerLabel;
+            document.getElementById('topicHeaderRight').textContent = data.headerRight;
+            document.getElementById('tickerBadge').textContent = data.tickerBadge;
+
+            updateStage();
+        }
+
+        function setQuickTopic(text) {
+            document.getElementById('inputTopicMain').value = text;
+            updateStage();
+        }
+
+        function selectBackground(src, thumbId, needPatchCover) {
+            document.getElementById('stageBg').src = src;
+            document.querySelectorAll('.bg-thumb-card').forEach(c => c.classList.remove('active'));
+            document.getElementById(thumbId).classList.add('active');
+            document.getElementById('togglePatchCover').checked = needPatchCover;
+            updateStage();
+        }
+
+        function updateStage() {
+            const l1 = document.getElementById('inputLine1').value;
+            const l2 = document.getElementById('inputLine2').value;
+            const main = document.getElementById('inputTopicMain').value;
+            const sub = document.getElementById('inputTopicSub').value;
+            const ticker = document.getElementById('inputTicker').value;
+            const showPatch = document.getElementById('togglePatchCover').checked;
+
+            const patchEl = document.getElementById('subGraffPatch');
+            document.getElementById('subGraffLine1').textContent = l1;
+            document.getElementById('subGraffLine2').textContent = l2;
+
+            if (showPatch) {
+                patchEl.style.display = 'flex';
+                patchEl.classList.add('concrete-cover');
+            } else {
+                patchEl.style.display = 'none';
+            }
+
+            document.getElementById('topicMainText').textContent = main;
+            document.getElementById('topicSubText').textContent = sub;
+            document.getElementById('tickerText').textContent = ticker;
+        }
+
+        function updateCamOptions() {
+            const ring = document.getElementById('toggleCamRing').checked;
+            const slot = document.getElementById('camSlot');
+            slot.classList.toggle('show-ring', ring);
+        }
+
+        // Webcam locale optionnelle
+        let webcamStream = null;
+        async function toggleLocalWebcam() {
+            const slot = document.getElementById('camSlot');
+            const video = document.getElementById('webcamVideo');
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(t => t.stop());
+                webcamStream = null;
+                slot.classList.remove('webcam-active');
+                return;
+            }
+            try {
+                webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                video.srcObject = webcamStream;
+                slot.classList.add('webcam-active');
+            } catch (e) {
+                alert("Impossible d'accéder à la webcam (elle est peut-être déjà utilisée par TikTok LIVE Studio, ce qui est normal ! Tu peux simplement superposer ta caméra dans TikTok Studio dans le cercle prévu).");
+            }
+        }
+
+        // Mode Capture Plein Écran (Touche F)
+        function toggleCaptureMode() {
+            document.body.classList.toggle('capture-mode');
+        }
+        window.addEventListener('keydown', (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+            if (e.key === '1') switchBranch('vss');
+            if (e.key === '2') switchBranch('politique');
+            if (e.key === '3') switchBranch('musique');
+            if (e.key.toLowerCase() === 'f') toggleCaptureMode();
+        });
+
+        // =========================================================
+        // LECTEUR AUDIO & VISUALISEUR SPECTRE (UNDERGROUND INSURRECTION)
+        // =========================================================
+        let audioCtx, analyser, sourceNode, dataArray;
+        const audioPlayer = document.getElementById('audioPlayer');
+        const canvas = document.getElementById('visualizerCanvas');
+        const ctx = canvas.getContext('2d');
+        let playlist = [];
+
+        function toggleMusicBox() {
+            const show = document.getElementById('toggleMusicHud').checked;
+            document.getElementById('musicHud').classList.toggle('active', show);
+        }
+
+        function updateMusicInfo() {
+            document.getElementById('musicTrackTitle').textContent = document.getElementById('inputTrackTitle').value;
+            document.getElementById('musicGenreBadge').textContent = document.getElementById('selectMusicGenre').value;
+        }
+
+        function handleAudioFiles(files) {
+            if (!files || !files.length) return;
+            Array.from(files).forEach(file => {
+                const url = URL.createObjectURL(file);
+                const cleanName = file.name.replace(/\.[^/.]+$/, "");
+                playlist.push({ name: cleanName, url });
+            });
+            renderPlaylist();
+            if (audioPlayer.paused && playlist.length > 0) {
+                playTrack(playlist.length - files.length);
+            }
+        }
+
+        function renderPlaylist() {
+            const list = document.getElementById('trackList');
+            list.innerHTML = playlist.map((item, idx) => `
+                <div class="track-item" id="track-${idx}" onclick="playTrack(${idx})">
+                    <span>▶️ ${item.name}</span>
+                    <span style="color:var(--text-muted); font-size:0.72rem;">Jouer en direct</span>
+                </div>
+            `).join('');
+        }
+
+        function playTrack(idx) {
+            const track = playlist[idx];
+            if (!track) return;
+            initAudioVisualizer();
+            audioPlayer.src = track.url;
+            audioPlayer.play();
+            document.getElementById('inputTrackTitle').value = track.name.toUpperCase();
+            updateMusicInfo();
+            document.querySelectorAll('.track-item').forEach((el, i) => {
+                el.classList.toggle('playing', i === idx);
+            });
+        }
+
+        function initAudioVisualizer() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioCtx.createAnalyser();
+            sourceNode = audioCtx.createMediaElementSource(audioPlayer);
+            sourceNode.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            analyser.fftSize = 64;
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+        }
+
+        let spotifyPlaying = false;
+        let lastRemoteTimestamp = 0;
+
+        function drawVisualizer() {
+            requestAnimationFrame(drawVisualizer);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const barCount = 28;
+            const barWidth = (canvas.width / barCount) - 3;
+
+            for (let i = 0; i < barCount; i++) {
+                let val = 5;
+                if (analyser && !audioPlayer.paused) {
+                    analyser.getByteFrequencyData(dataArray);
+                    val = Math.max(4, (dataArray[i] / 255) * canvas.height);
+                } else if (spotifyPlaying) {
+                    // Spectre dynamique rythmé quand Spotify joue sur le PC
+                    const t = Date.now() / 95;
+                    const wave1 = Math.abs(Math.sin(t + i * 0.45)) * 0.65;
+                    const wave2 = Math.abs(Math.cos(t * 1.3 - i * 0.3)) * 0.35;
+                    val = Math.max(4, (wave1 + wave2) * (canvas.height - 2));
+                } else {
+                    // Animation idle douce en pause
+                    val = 4 + Math.sin(Date.now() / 260 + i * 0.5) * 2.5;
+                }
+                const x = i * (barWidth + 3);
+                const y = canvas.height - val;
+                const grad = ctx.createLinearGradient(0, canvas.height, 0, 0);
+                grad.addColorStop(0, getComputedStyle(document.documentElement).getPropertyValue('--active-primary').trim() || '#f97316');
+                grad.addColorStop(1, '#ffffff');
+                ctx.fillStyle = grad;
+                ctx.fillRect(x, y, barWidth, val);
+            }
+        }
+        drawVisualizer();
+
+        // =========================================================
+        // SYNCHRONISATION TEMPS RÉEL : SPOTIFY PC & TÉLÉCOMMANDE CLIENT
+        // =========================================================
+        async function pollLocalClientState() {
+            try {
+                const res = await fetch('http://127.0.0.1:8765/state?t=' + Date.now(), { cache: 'no-store' });
+                if (!res.ok) return;
+                const state = await res.json();
+
+                // 1. Si l'utilisateur a changé de branche via la Télécommande Client (ou F9/F10/F11)
+                if (state.branch_timestamp && state.branch_timestamp > lastRemoteTimestamp) {
+                    lastRemoteTimestamp = state.branch_timestamp;
+                    if (state.branch && state.branch !== currentBranch) {
+                        switchBranch(state.branch);
+                    }
+                    if (state.custom_topic) {
+                        document.getElementById('inputTopicMain').value = state.custom_topic;
+                        updateStage();
+                    }
+                }
+
+                // 2. Mise à jour automatique du morceau Spotify Premium en cours sur le PC
+                if (state.spotify && state.spotify.connected) {
+                    const sp = state.spotify;
+                    spotifyPlaying = !!sp.playing;
+                    const titleEl = document.getElementById('musicTrackTitle');
+                    const artistAlbumEl = document.getElementById('musicArtistAlbum');
+                    const coverEl = document.getElementById('spotifyCoverImg');
+
+                    titleEl.textContent = (sp.title || 'Morceau en cours').toUpperCase();
+                    const albumStr = sp.album ? ` • 💿 ${sp.album}` : '';
+                    artistAlbumEl.textContent = `🎤 ${sp.artist || 'Artiste'}${albumStr}`;
+
+                    if (sp.cover_url) {
+                        if (coverEl.src !== sp.cover_url) {
+                            coverEl.src = sp.cover_url;
+                        }
+                        coverEl.classList.add('visible');
+                    } else {
+                        coverEl.classList.remove('visible');
+                    }
+                }
+            } catch (e) {
+                // Télécommande fermée ou mode autonome
+            }
+        }
+        setInterval(pollLocalClientState, 1200);
+        pollLocalClientState();
+
+        // =========================================================
+        // EXPORTATEUR PNG (BANDEAU TRANSPARENT OU FOND COMPLET 1080x1920)
+        // =========================================================
+        function exportBannerOnlyPNG() {
+            const outCanvas = document.createElement('canvas');
+            outCanvas.width = 1080;
+            outCanvas.height = 680;
+            const c = outCanvas.getContext('2d');
+
+            const primary = getComputedStyle(document.documentElement).getPropertyValue('--active-primary').trim();
+            const secondary = getComputedStyle(document.documentElement).getPropertyValue('--active-secondary').trim();
+            const l1 = document.getElementById('inputLine1').value;
+            const l2 = document.getElementById('inputLine2').value;
+            const topicMain = document.getElementById('inputTopicMain').value;
+            const topicSub = document.getElementById('inputTopicSub').value;
+
+            // Plaque de fond sombre semi-transparente pour couvrir "UNDERGROUND INSURRECTION"
+            const grad = c.createRadialGradient(540, 140, 60, 540, 140, 520);
+            grad.addColorStop(0, 'rgba(22, 22, 26, 0.96)');
+            grad.addColorStop(1, 'rgba(14, 14, 16, 0.0)');
+            c.fillStyle = grad;
+            c.fillRect(20, 10, 1040, 270);
+
+            // Ligne 1 (Style Graff)
+            c.save();
+            c.translate(540, 110);
+            c.rotate(-0.02);
+            c.font = "900 78px 'Anton', Impact, sans-serif";
+            c.textAlign = "center";
+            c.lineWidth = 12;
+            c.strokeStyle = "#000000";
+            c.strokeText(l1, 0, 0);
+            c.fillStyle = secondary;
+            c.fillText(l1, 0, 0);
+            c.restore();
+
+            // Ligne 2
+            c.save();
+            c.translate(540, 195);
+            c.rotate(0.01);
+            c.font = "700 56px 'Permanent Marker', sans-serif";
+            c.textAlign = "center";
+            c.lineWidth = 10;
+            c.strokeStyle = "#000000";
+            c.strokeText(l2, 0, 0);
+            c.fillStyle = "#ffffff";
+            c.fillText(l2, 0, 0);
+            c.restore();
+
+            // Trait de bombe
+            c.fillStyle = primary;
+            c.fillRect(180, 225, 720, 8);
+
+            // Carte Sujet en bas
+            c.fillStyle = "rgba(12, 12, 16, 0.92)";
+            c.fillRect(50, 280, 980, 220);
+            c.fillStyle = primary;
+            c.fillRect(50, 280, 14, 220);
+
+            c.font = "800 26px 'Space Grotesk', sans-serif";
+            c.fillStyle = secondary;
+            c.textAlign = "left";
+            c.fillText(document.getElementById('topicHeaderLabel').textContent, 90, 330);
+
+            c.font = "800 36px 'Space Grotesk', sans-serif";
+            c.fillStyle = "#ffffff";
+            c.fillText(topicMain.substring(0, 48), 90, 390);
+            if (topicMain.length > 48) {
+                c.fillText(topicMain.substring(48, 96), 90, 435);
+            }
+
+            c.font = "600 24px 'Space Grotesk', sans-serif";
+            c.fillStyle = "#d1d5db";
+            c.fillText(topicSub.substring(0, 70), 90, 478);
+
+            const link = document.createElement('a');
+            link.download = `bandeau_${currentBranch}_tiktok.png`;
+            link.href = outCanvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function exportFullStagePNG() {
+            const bgImg = document.getElementById('stageBg');
+            const outCanvas = document.createElement('canvas');
+            outCanvas.width = 1080;
+            outCanvas.height = 1920;
+            const c = outCanvas.getContext('2d');
+
+            c.drawImage(bgImg, 0, 0, 1080, 1920);
+
+            const primary = getComputedStyle(document.documentElement).getPropertyValue('--active-primary').trim();
+            const secondary = getComputedStyle(document.documentElement).getPropertyValue('--active-secondary').trim();
+            const l1 = document.getElementById('inputLine1').value;
+            const l2 = document.getElementById('inputLine2').value;
+            const topicMain = document.getElementById('inputTopicMain').value;
+            const topicSub = document.getElementById('inputTopicSub').value;
+            const ticker = document.getElementById('inputTicker').value;
+
+            if (document.getElementById('togglePatchCover').checked) {
+                const grad = c.createRadialGradient(540, 1300, 80, 540, 1300, 520);
+                grad.addColorStop(0, 'rgba(22, 22, 26, 0.98)');
+                grad.addColorStop(0.8, 'rgba(16, 16, 18, 0.92)');
+                grad.addColorStop(1, 'rgba(14, 14, 16, 0.0)');
+                c.fillStyle = grad;
+                c.fillRect(30, 1150, 1020, 290);
+
+                c.save();
+                c.translate(540, 1265);
+                c.rotate(-0.02);
+                c.font = "900 84px 'Anton', Impact, sans-serif";
+                c.textAlign = "center";
+                c.lineWidth = 14;
+                c.strokeStyle = "#000000";
+                c.strokeText(l1, 0, 0);
+                c.fillStyle = secondary;
+                c.fillText(l1, 0, 0);
+                c.restore();
+
+                c.save();
+                c.translate(540, 1355);
+                c.rotate(0.01);
+                c.font = "700 58px 'Permanent Marker', sans-serif";
+                c.textAlign = "center";
+                c.lineWidth = 10;
+                c.strokeStyle = "#000000";
+                c.strokeText(l2, 0, 0);
+                c.fillStyle = "#ffffff";
+                c.fillText(l2, 0, 0);
+                c.restore();
+
+                c.fillStyle = primary;
+                c.fillRect(190, 1388, 700, 8);
+            }
+
+            // Carte Sujet en bas
+            c.fillStyle = "rgba(12, 12, 16, 0.92)";
+            c.fillRect(45, 1470, 990, 230);
+            c.fillStyle = primary;
+            c.fillRect(45, 1470, 14, 230);
+
+            c.font = "800 26px 'Space Grotesk', sans-serif";
+            c.fillStyle = secondary;
+            c.textAlign = "left";
+            c.fillText(document.getElementById('topicHeaderLabel').textContent, 85, 1520);
+
+            c.font = "800 36px 'Space Grotesk', sans-serif";
+            c.fillStyle = "#ffffff";
+            c.fillText(topicMain.substring(0, 46), 85, 1580);
+            if (topicMain.length > 46) {
+                c.fillText(topicMain.substring(46, 92), 85, 1625);
+            }
+
+            c.font = "600 25px 'Space Grotesk', sans-serif";
+            c.fillStyle = "#d1d5db";
+            c.fillText(topicSub.substring(0, 68), 85, 1672);
+
+            // Bandeau bas
+            c.fillStyle = "rgba(8, 8, 10, 0.96)";
+            c.fillRect(45, 1810, 990, 64);
+            c.fillStyle = primary;
+            c.fillRect(45, 1810, 990, 4);
+            c.font = "700 24px 'Space Grotesk', sans-serif";
+            c.fillStyle = "#ffffff";
+            c.fillText(ticker.substring(0, 72), 65, 1852);
+
+            const link = document.createElement('a');
+            link.download = `fond_9_16_${currentBranch}_tiktok.png`;
+            link.href = outCanvas.toDataURL('image/png');
+            link.click();
+        }
+
+        // Initialiser au chargement
+        switchBranch('musique');
+    </script>
+</body>
+</html>

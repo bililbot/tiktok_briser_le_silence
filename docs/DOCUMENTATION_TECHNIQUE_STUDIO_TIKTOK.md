@@ -1,5 +1,5 @@
 # 📜 DOCUMENTATION TECHNIQUE — LIVE RÉGIE
-**Version :** 2.1.2 (`rust_studio/Cargo.toml`, voir [CHANGELOG](../CHANGELOG.md)) • **Système :** Windows (x64) • **Langages :** Rust (régie egui 0.29) & HTML5/CSS3/ES6 (scènes) & Python (pont chat)
+**Version :** 2.1.3 (`rust_studio/Cargo.toml`, voir [CHANGELOG](../CHANGELOG.md)) • **Système :** Windows (x64) • **Langages :** Rust (régie egui 0.29) & HTML5/CSS3/ES6 (scènes) & Python (pont chat)
 **Dernière mise à jour de la doc :** 06/11/2026 — alignée sur `rust_studio/src/main.rs`
 
 > Ce document décrit le **fonctionnement interne**. Pour l'utilisation au quotidien, voir le [guide utilisateur](GUIDE_UTILISATEUR.md).
@@ -380,6 +380,8 @@ Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).
    * Presse : `http://127.0.0.1:8765/article`
    * Urgences : `http://127.0.0.1:8765/urgences`
    * La fenêtre musique se capture par son titre, `MUSIQUE_LIVE_TIKTOK` (à ne pas renommer).
+   * Les scènes s'ouvrent dans une fenêtre Edge `--app` intitulée `STUDIO_LIVE_TIKTOK 9:16` (608×1080) ou `STUDIO_LIVE_TIKTOK 16:9` (1600×900, jamais en plein écran). Le changement de format ferme la scène ouverte (`close_all_stage_windows`, `WM_CLOSE` sur les titres qui contiennent `STUDIO_LIVE_TIKTOK`) puis ouvre l'autre.
+   * Une fenêtre réduite ne peut pas être capturée. `stage_windows()` (`EnumWindows` + `IsIconic`) est vérifiée chaque seconde : si une scène est réduite, la régie affiche un bandeau, et le bouton « Afficher la scène » appelle `restore_stage_windows()` (`SW_SHOWNOACTIVATE`).
 6. **Chat TikTok** : le pont `tiktok_chat_bridge.py <pseudo>` nécessite `pip install TikTokLive` (7.x).
 
 **Méthode de test sans fermer la régie de production** : impossible, à cause du mutex d'instance unique et du port 8765. Il faut fermer la régie avant de lancer une version de test. Avant chaque test, sauvegarder `live_state.json` et `studio_preferences.json`.

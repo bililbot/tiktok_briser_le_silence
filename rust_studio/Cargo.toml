@@ -1,6 +1,6 @@
 [package]
 name = "briser_le_silence_rust"
-version = "2.1.2"
+version = "2.1.3"
 edition = "2021"
 
 [[bin]]

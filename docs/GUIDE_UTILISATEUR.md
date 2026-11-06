@@ -43,6 +43,14 @@ La régie affiche tes scènes à des adresses locales, visibles uniquement sur t
 - si ta version propose une source de type **lien / page web**, colle directement l'adresse de la scène ;
 - sinon, ouvre l'adresse dans Chrome ou Edge, puis ajoute une source **Capture de fenêtre** sur cette fenêtre. Le bouton 🪟 de la régie ouvre les scènes pour toi.
 
+**Les fenêtres de scène** s'ouvrent toutes seules au lancement, et quand tu changes de format. Dans la liste de TikTok LIVE Studio, elles s'appellent :
+- `STUDIO_LIVE_TIKTOK 9:16` pour la scène verticale ;
+- `STUDIO_LIVE_TIKTOK 16:9` pour la scène paysage.
+
+Le plus simple est de créer une source **Capture de fenêtre** pour chacune. Quand tu changes de format, la source correspondante retrouve sa fenêtre toute seule.
+
+> ⚠️ **Ne réduis jamais une fenêtre de scène** dans la barre des tâches. Une fenêtre réduite ne peut pas être capturée, et elle disparaît de la liste de TikTok. Laisse-la derrière TikTok LIVE Studio. Si elle est réduite, la régie affiche un bandeau orange avec un bouton **Afficher la scène**.
+
 **La fenêtre musique** (`MUSIQUE_LIVE_TIKTOK`, pochette + titre en cours) s'ajoute aussi en **Capture de fenêtre**.
 
 > 💡 La régie doit rester ouverte pendant le live : c'est elle qui fait vivre les scènes. Tu peux la réduire.
@@ -53,7 +61,7 @@ La régie affiche tes scènes à des adresses locales, visibles uniquement sur t
 
 ### La barre du haut (toujours visible)
 - **🛡️ BOUCLIER ANTI-RAID (F8)** : le bouton d'urgence en cas d'attaque dans le chat (voir §5).
-- **LIVE RÉGIE v2.1.2** : le nom et la version.
+- **LIVE RÉGIE v2.1.3** : le nom et la version.
 - **Format** : bascule entre les scènes 9:16 et 16:9.
 - **Mode Mini** : une petite fenêtre avec l'essentiel, à garder dans un coin de l'écran.
 - **Les boutons de branches** (💜 VSS & Inceste, ✊ Politique, 🎸 Musique, ☕ Chill…) changent le thème du live. Les 3 premiers ont les raccourcis **F9, F10, F11**.

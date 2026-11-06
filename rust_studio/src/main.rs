@@ -753,6 +753,38 @@ fn install_windows_emoji_fonts(ctx: &egui::Context) {
     ctx.set_fonts(fonts);
 }
 
+/// Fenêtres de scène ouvertes (titre « STUDIO_LIVE_TIKTOK 9:16 / 16:9 ») avec leur état réduit ou non
+fn stage_windows() -> Vec<(windows::Win32::Foundation::HWND, bool)> {
+    use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextW, IsIconic};
+    unsafe extern "system" fn collect(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let list = &mut *(lparam.0 as *mut Vec<(HWND, bool)>);
+        let mut buf = [0u16; 512];
+        let len = GetWindowTextW(hwnd, &mut buf);
+        if len > 0 && String::from_utf16_lossy(&buf[..len as usize]).contains("STUDIO_LIVE_TIKTOK") {
+            list.push((hwnd, IsIconic(hwnd).as_bool()));
+        }
+        BOOL(1)
+    }
+    let mut list: Vec<(HWND, bool)> = Vec::new();
+    unsafe {
+        let _ = EnumWindows(Some(collect), LPARAM(&mut list as *mut _ as isize));
+    }
+    list
+}
+
+/// Ré-affiche les scènes réduites sans leur donner le focus (TikTok LIVE Studio ne capture pas une fenêtre réduite)
+fn restore_stage_windows() {
+    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
+    for (hwnd, minimized) in stage_windows() {
+        if minimized {
+            unsafe {
+                let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            }
+        }
+    }
+}
+
 /// Bascule de branche (boutons de la régie et raccourcis F9–F11) : textes et urgences selon branches.json
 fn apply_branch(st: &mut FullLiveState, branch_key: &str) {
     st.branch = branch_key.to_string();
@@ -1112,6 +1144,8 @@ struct TelecommandeApp {
     journal_status: String,
     chat_bridge: Option<std::process::Child>,
     branches_draft: Option<Vec<BranchConfig>>,
+    stage_minimized: bool,
+    last_stage_check: Instant,
 }
 
 impl TelecommandeApp {
@@ -1139,6 +1173,8 @@ impl TelecommandeApp {
             journal_status: String::new(),
             chat_bridge: None,
             branches_draft: None,
+            stage_minimized: false,
+            last_stage_check: Instant::now(),
         };
         app.load_library();
         app.load_emergency_numbers();
@@ -1400,9 +1436,10 @@ impl TelecommandeApp {
             if std::path::Path::new(p).exists() {
                 let _ = Command::new(p)
                     .arg(format!("--app={}", url))
-                    .arg("--start-maximized")
-                    .arg("--window-size=1920,1080")
-                    .arg("--window-position=0,0")
+                    // Pas en plein écran : sinon elle recouvre TikTok LIVE Studio, on la réduit,
+                    // et une fenêtre réduite ne peut plus être capturée (elle disparaît de la liste)
+                    .arg("--window-size=1600,900")
+                    .arg("--window-position=160,60")
                     .arg("--disable-background-timer-throttling")
                     .arg("--disable-backgrounding-occluded-windows")
                     .arg("--disable-renderer-backgrounding")
@@ -5606,8 +5643,30 @@ impl eframe::App for TelecommandeApp {
             .fill(Color32::from_rgb(16, 17, 22))
             .inner_margin(egui::Margin::same(8.0));
 
+        // Une scène réduite ne peut pas être capturée par TikTok LIVE Studio : on vérifie chaque seconde
+        if self.last_stage_check.elapsed() > Duration::from_secs(1) {
+            self.last_stage_check = Instant::now();
+            self.stage_minimized = stage_windows().iter().any(|(_, minimized)| *minimized);
+        }
+
         egui::CentralPanel::default().frame(panel_frame).show(ctx, |ui| {
             self.render_shield_bar(ui);
+            if self.stage_minimized {
+                egui::Frame::none()
+                    .fill(Color32::from_rgb(120, 53, 15))
+                    .rounding(Rounding::same(6.0))
+                    .inner_margin(egui::Margin::same(6.0))
+                    .show(ui, |ui| {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(RichText::new("⚠️ La scène est réduite : TikTok LIVE Studio ne peut pas la capturer.").strong().color(Color32::WHITE));
+                            if ui.button("Afficher la scène").clicked() {
+                                restore_stage_windows();
+                                self.stage_minimized = false;
+                            }
+                        });
+                    });
+                ui.add_space(4.0);
+            }
             if self.mini_mode {
                 self.render_mini_dashboard(ui, ctx);
             } else {

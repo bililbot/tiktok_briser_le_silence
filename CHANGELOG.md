@@ -11,6 +11,14 @@ Chaque version est marquée par un tag Git (`v2.1.0`…), ce qui permet d'y reve
 
 ---
 
+## [2.1.3] — 2026-11-06
+
+### Corrections
+- **La scène 16:9 disparaissait de la liste des fenêtres de TikTok LIVE Studio.** Elle s'ouvrait en plein écran et recouvrait TikTok ; on la réduisait, et une fenêtre réduite ne peut plus être capturée.
+  - Elle s'ouvre maintenant en 1600×900, sans plein écran.
+  - La régie affiche un bandeau « La scène est réduite », avec un bouton **Afficher la scène**.
+- **Les deux scènes portaient le même nom de fenêtre.** Elles s'appellent maintenant `STUDIO_LIVE_TIKTOK 9:16` et `STUDIO_LIVE_TIKTOK 16:9`, et se distinguent dans la liste des fenêtres.
+
 ## [2.1.2] — 2026-11-06
 
 ### Améliorations

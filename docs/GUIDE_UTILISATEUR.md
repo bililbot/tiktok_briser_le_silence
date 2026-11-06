@@ -87,7 +87,7 @@ Bascule ensuite la régie sur le même format (bouton 9:16 / 16:9 en haut de la 
 
 ### La barre du haut (toujours visible)
 - **🛡️ BOUCLIER ANTI-RAID (F8)** : le bouton d'urgence en cas d'attaque dans le chat (voir §5).
-- **LIVE RÉGIE v2.2.0** : le nom et la version.
+- **LIVE RÉGIE v2.2.1** : le nom et la version.
 - **Les voyants** à côté :
   - **● Chat** (vert) ou **○ Chat** (gris) indique si le chat est connecté ; le détail s'affiche au survol ;
   - **🆘 N** (rouge) apparaît quand des demandes d'aide sont à traiter ; un clic ouvre le Bilan.
@@ -254,6 +254,7 @@ Onglet **🔴 Direct** → bloc **Sons & jingles** → **➕ Ajouter Jingle**, e
 | Le chat ne se connecte pas | Vérifie le pseudo (sans faute) et que tu es bien en live. « Module TikTokLive non installé » : lance `pip install TikTokLive`. |
 | « Compte introuvable » | Le pseudo est mal orthographié : corrige-le et reconnecte. |
 | Une question s'épingle toute seule | L'option « épingler automatiquement les questions » est activée dans la config du bot. |
+| La scène ne change qu'en revenant sur sa fenêtre | Mets Live Régie à jour (2.2.1 ou plus) : la scène est maintenant ouverte dans un Edge dédié qui ne se met pas en veille derrière TikTok. |
 | Un raccourci ne marche pas | Une autre application utilise peut-être la même touche. Ferme-la ou utilise le bouton dans la régie. |
 | Je veux revenir aux thèmes d'origine | ⚙️ Réglages → Branches du live → **🔄 Rétablir les 4 branches d'origine** → **💾 Enregistrer**. |
 

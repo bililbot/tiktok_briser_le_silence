@@ -11,6 +11,13 @@ Chaque version est marquée par un tag Git (`v2.1.0`…), ce qui permet d'y reve
 
 ---
 
+## [2.2.1] — 2026-11-06
+
+### Corrections
+- **La scène ne se mettait plus à jour quand elle était cachée derrière TikTok LIVE Studio.** Par exemple, un changement de branche (F9 à F11) n'apparaissait qu'en revenant sur la fenêtre de scène.
+  - Cause : Edge, déjà lancé en arrière-plan (démarrage rapide de Windows), ouvrait la scène dans son processus existant et **ignorait les options anti-veille**. La page cachée se mettait donc en veille.
+  - Correctif : les scènes, la fenêtre presse et la fenêtre urgences s'ouvrent maintenant dans un **Edge dédié** (profil `edge_scene_profile/`), qui applique réellement ces options. Ton Edge habituel n'est pas touché.
+
 ## [2.2.0] — 2026-11-06
 
 ### Interface réorganisée

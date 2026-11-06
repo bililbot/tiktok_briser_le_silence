@@ -1,5 +1,5 @@
 # 📜 DOCUMENTATION TECHNIQUE — LIVE RÉGIE
-**Version :** 2.2.0 (`rust_studio/Cargo.toml`, voir [CHANGELOG](../CHANGELOG.md)) • **Système :** Windows (x64) • **Langages :** Rust (régie egui 0.29) & HTML5/CSS3/ES6 (scènes) & Python (pont chat)
+**Version :** 2.2.1 (`rust_studio/Cargo.toml`, voir [CHANGELOG](../CHANGELOG.md)) • **Système :** Windows (x64) • **Langages :** Rust (régie egui 0.29) & HTML5/CSS3/ES6 (scènes) & Python (pont chat)
 **Dernière mise à jour de la doc :** 06/11/2026 — alignée sur `rust_studio/src/main.rs`
 
 > Ce document décrit le **fonctionnement interne**. Pour l'utilisation au quotidien, voir le [guide utilisateur](GUIDE_UTILISATEUR.md).
@@ -379,6 +379,7 @@ Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).
    * Urgences : `http://127.0.0.1:8765/urgences`
    * La fenêtre musique se capture par son titre, `MUSIQUE_LIVE_TIKTOK` (à ne pas renommer).
    * Les scènes s'ouvrent dans une fenêtre Edge `--app` intitulée `STUDIO_LIVE_TIKTOK 9:16` (608×1080) ou `STUDIO_LIVE_TIKTOK 16:9`. Le changement de format ferme la scène ouverte (`close_all_stage_windows`, `WM_CLOSE` sur les titres qui contiennent `STUDIO_LIVE_TIKTOK`) puis ouvre l'autre. Edge ignore `--window-size` quand il tourne déjà en arrière-plan : `place_stage_window_when_ready()` attend donc la fenêtre (jusqu'à 10 s), puis la place avec `SetWindowPos` selon la zone utile de l'écran (`SPI_GETWORKAREA`, pixels réels). La 16:9 occupe 80 % de la zone, en haut à gauche, jamais en plein écran ; la 9:16 occupe 95 % de la hauteur.
+   * Les fenêtres capturables (scènes, presse, urgences) sont lancées par `spawn_capture_window()` dans un **Edge dédié** (`--user-data-dir=edge_scene_profile`). Sans profil séparé, un Edge déjà lancé en arrière-plan (démarrage rapide, `--no-startup-window`) ignore `--disable-renderer-backgrounding`, `--disable-features=CalculateNativeWinOcclusion`, etc. : la page cachée derrière TikTok se met en veille et ne se met plus à jour.
    * Une fenêtre réduite ne peut pas être capturée. `stage_windows()` (`EnumWindows` + `IsIconic`) est vérifiée chaque seconde : si une scène est réduite, la régie affiche un bandeau, et le bouton « Afficher la scène » appelle `restore_stage_windows()` (`SW_SHOWNOACTIVATE`).
 6. **Chat TikTok** : le pont `tiktok_chat_bridge.py <pseudo>` nécessite `pip install TikTokLive` (7.x).
 

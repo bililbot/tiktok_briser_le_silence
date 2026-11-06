@@ -4,7 +4,9 @@ Ce document répertorie les concepts et fonctionnalités validés à implémente
 
 ---
 
-### 🛡️ 1. Bouton Panique / « Mode Bouclier Anti-Raid »
+### 🛡️ 1. Bouton Panique / « Mode Bouclier Anti-Raid » — ✅ FAIT (F8, voir doc technique)
+> Pas encore fait : couper le micro et lancer une musique d'intermède automatiquement.
+
 * **Objectif** : Protéger le streamer et le compte TikTok d'un ban algorithmique en cas d'attaque de trolls ou de dérapage dans le chat.
 * **Comportement en 1 clic** :
   * Masque instantanément le chat à l'écran.

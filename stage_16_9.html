@@ -1673,7 +1673,8 @@
 
                 // 8. COMMENTAIRE / QUESTION ÉPINGLÉ(E) DU CHAT TIKTOK
                 const pinnedWidget = document.getElementById("pinnedCommentWidget");
-                pinnedWidget.style.display = (st.pinned_visible && st.pinned_text) ? "block" : "none";
+                pinnedWidget.style.display = (st.pinned_visible && st.pinned_text && !st.shield_active) ? "block" : "none";
+                if (typeof renderShield === "function") renderShield(st);
                 if (st.pinned_visible && st.pinned_text) {
                     document.getElementById("pinnedAuthorDisplay").textContent = st.pinned_author || "Spectateur";
                     const msgEl = document.getElementById("pinnedMsgDisplay");
@@ -1888,6 +1889,33 @@
         
         setInterval(syncWithRustBackend, 250);
         syncWithRustBackend();
+    </script>
+    <!-- Bouclier anti-raid : écran de pause plein cadre piloté par st.shield_active (F8 dans la régie) -->
+    <style>
+        #shieldOverlay { position: fixed; inset: 0; z-index: 99999; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 2.5vh; padding: 6vw; text-align: center; background: radial-gradient(circle at center, rgb(40, 8, 12), rgb(5, 2, 4)); color: #fff; font-family: 'Space Grotesk', sans-serif; }
+        #shieldOverlay.active { display: flex; animation: shieldIn 0.4s ease-out; }
+        #shieldOverlay .shield-icon { font-size: 9vmin; animation: shieldPulse 2.4s ease-in-out infinite; }
+        #shieldOverlay .shield-msg { font-family: 'Anton', sans-serif; font-size: 6vmin; letter-spacing: 0.04em; line-height: 1.15; text-transform: uppercase; text-shadow: 0 0 2vmin rgba(239, 68, 68, 0.6); }
+        #shieldOverlay .shield-sub { font-size: 2.6vmin; font-weight: 700; color: #fca5a5; }
+        #shieldOverlay .shield-help { font-size: 2.4vmin; font-weight: 700; color: #e5e7eb; opacity: 0.9; }
+        @keyframes shieldIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes shieldPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+    </style>
+    <div id="shieldOverlay">
+        <div class="shield-icon">🛡️</div>
+        <div class="shield-msg" id="shieldMsg"></div>
+        <div class="shield-sub">Le live reprend dans un instant — merci pour votre patience</div>
+        <div class="shield-help" id="shieldHelp"></div>
+    </div>
+    <script>
+        function renderShield(st) {
+            const el = document.getElementById("shieldOverlay");
+            el.classList.toggle("active", !!st.shield_active);
+            if (!st.shield_active) return;
+            document.getElementById("shieldMsg").textContent = st.shield_text || "⏸️ Pause modération — Débat en cours de régulation";
+            const nums = (st.emergency_numbers || []).filter(n => n.enabled).slice(0, 3).map(n => n.number + " " + n.label);
+            document.getElementById("shieldHelp").textContent = nums.length ? "Besoin d'aide : " + nums.join(" • ") : "";
+        }
     </script>
 </body>
 </html>

@@ -17,7 +17,7 @@ use windows::{
         },
         System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED},
         UI::Input::KeyboardAndMouse::{
-            keybd_event, GetAsyncKeyState, KEYEVENTF_KEYUP, VK_F10, VK_F11, VK_F12, VK_F9,
+            keybd_event, GetAsyncKeyState, KEYEVENTF_KEYUP, VK_F10, VK_F11, VK_F12, VK_F8, VK_F9,
             VK_MEDIA_NEXT_TRACK, VK_MEDIA_PLAY_PAUSE, VK_MEDIA_PREV_TRACK,
         },
     },
@@ -323,9 +323,12 @@ pub fn trigger_media_prev() {
     }
 }
 
-/// Retourne Some("vss" | "politique" | "musique" | "toggle_video") si F9 / F10 / F11 / F12 est pressé
+/// Retourne Some("shield" | "vss" | "politique" | "musique" | "toggle_video") si F8 / F9 / F10 / F11 / F12 est pressé
 pub fn check_global_hotkeys() -> Option<&'static str> {
     unsafe {
+        if (GetAsyncKeyState(VK_F8.0 as i32) as u16 & 0x8000) != 0 {
+            return Some("shield");
+        }
         if (GetAsyncKeyState(VK_F9.0 as i32) as u16 & 0x8000) != 0 {
             return Some("vss");
         }

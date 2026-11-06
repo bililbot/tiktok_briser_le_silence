@@ -134,6 +134,21 @@ Le lecteur YouTube des overlays (`stage_solution_b.html` et `stage_16_9.html`) :
 
 ---
 
+## 🛡️ Bouclier Anti-Raid
+
+* **Activation** : bouton rouge en haut de la régie, visible dans tous les onglets et en mode mini, ou **touche F8** (raccourci global, actif même quand la régie n'a pas le focus).
+* **État** : `shield_active` et `shield_text` dans `FullLiveState`. Les deux champs sont marqués `#[serde(default)]`, donc les anciennes sauvegardes restent compatibles. Le bouclier est conservé en cas de redémarrage.
+* **Effets côté régie (`/chat_ingest`)** :
+  * les commentaires continuent d'arriver dans la liste de la régie, pour la modération ;
+  * les déclencheurs `jingle` et `pin`, ainsi que l'épinglage automatique des questions, sont **gelés** ;
+  * le déclencheur `emergency` reste actif.
+* **Effets côté scènes** (`stage_solution_b.html` et `stage_16_9.html`) :
+  * un écran plein cadre opaque (`#shieldOverlay`) masque tout le contenu ;
+  * il affiche le message (`shield_text`, ou par défaut « Pause modération — Débat en cours de régulation ») et les 3 premiers numéros d'aide actifs ;
+  * le commentaire épinglé est masqué.
+
+---
+
 ## 👆 6. Spécification Technique de l'Auto-Tappeur
 
 Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).

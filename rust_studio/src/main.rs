@@ -380,6 +380,11 @@ pub struct FullLiveState {
     pub trigger_warning_visible: bool,
     pub trigger_warning_text: String,
     // Commentaire / Question épinglé(e) sur le Live + Bot Chat TikTok
+    // Bouclier anti-raid : masque le chat/épinglé, gèle les déclencheurs du bot et affiche un écran de pause
+    #[serde(default)]
+    pub shield_active: bool,
+    #[serde(default)]
+    pub shield_text: String,
     pub pinned_visible: bool,
     pub pinned_author: String,
     pub pinned_text: String,
@@ -486,6 +491,8 @@ impl Default for FullLiveState {
             emergency_numbers: default_emergency_numbers(),
             trigger_warning_visible: false,
             trigger_warning_text: "⚠️ TW : Sujet sensible (Inceste & Violences Sexuelles) — Prenez soin de vous".to_string(),
+            shield_active: false,
+            shield_text: String::new(),
             pinned_visible: false,
             pinned_author: String::new(),
             pinned_text: String::new(),
@@ -1558,6 +1565,48 @@ impl TelecommandeApp {
             },
         );
         self.show_bot_config_window = open;
+    }
+
+    fn toggle_shield(&mut self) {
+        if let Ok(mut st) = self.state.lock() {
+            st.shield_active = !st.shield_active;
+            st.branch_timestamp = now_secs();
+            save_state_json(&st);
+        }
+    }
+
+    /// Bouton panique toujours visible (mode normal et mode mini) + message de pause modifiable
+    fn render_shield_bar(&mut self, ui: &mut egui::Ui) {
+        let (active, mut text) = {
+            let st = self.state.lock().unwrap();
+            (st.shield_active, st.shield_text.clone())
+        };
+        let (label, fill) = if active {
+            ("🛡️ BOUCLIER ACTIF — Cliquer pour reprendre le live (F8)", Color32::from_rgb(185, 28, 28))
+        } else {
+            ("🛡️ BOUCLIER ANTI-RAID (F8)", Color32::from_rgb(60, 20, 20))
+        };
+        let btn = egui::Button::new(RichText::new(label).strong().size(11.5).color(Color32::WHITE))
+            .fill(fill)
+            .stroke(Stroke::new(1.5_f32, Color32::from_rgb(248, 113, 113)));
+        if ui.add_sized([ui.available_width(), 30.0], btn).clicked() {
+            self.toggle_shield();
+        }
+        if active {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Message :").size(10.5).color(Color32::from_rgb(252, 165, 165)));
+                let edit = egui::TextEdit::singleline(&mut text)
+                    .hint_text("⏸️ PAUSE MODÉRATION — Débat en cours de régulation")
+                    .desired_width(ui.available_width());
+                if ui.add(edit).changed() {
+                    if let Ok(mut st) = self.state.lock() {
+                        st.shield_text = text;
+                        save_state_json(&st);
+                    }
+                }
+            });
+        }
+        ui.add_space(4.0);
     }
 
     fn render_top_quick_bar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
@@ -4718,6 +4767,7 @@ impl eframe::App for TelecommandeApp {
                 self.last_hotkey_time = Instant::now();
                 match hk {
                     "vss" | "politique" | "musique" => self.set_branch(hk),
+                    "shield" => self.toggle_shield(),
                     "toggle_video" => {
                         if let Ok(mut st) = self.state.lock() {
                             st.video_active = !st.video_active;
@@ -4736,6 +4786,7 @@ impl eframe::App for TelecommandeApp {
             .inner_margin(egui::Margin::same(8.0));
 
         egui::CentralPanel::default().frame(panel_frame).show(ctx, |ui| {
+            self.render_shield_bar(ui);
             if self.mini_mode {
                 self.render_mini_dashboard(ui, ctx);
             } else {
@@ -4826,6 +4877,7 @@ fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveSt
                         let text = val.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string();
                         let avatar = val.get("avatar").and_then(|v| v.as_str()).unwrap_or("").to_string();
                         let is_question = text.contains('?');
+                        let shield = st.shield_active;
 
                         let lower = text.to_lowercase();
 
@@ -4867,7 +4919,8 @@ fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveSt
                                         is_help = true;
                                         st.emergency_visible = true;
                                     }
-                                    "jingle" => {
+                                    // Bouclier actif : le chat ne peut plus déclencher de jingle ni épingler (l'urgence reste active)
+                                    "jingle" if !shield => {
                                         st.jingle_cmd_id += 1;
                                         st.jingle_type = if trig.action_param.is_empty() {
                                             "alerte".to_string()
@@ -4875,7 +4928,7 @@ fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveSt
                                             trig.action_param.clone()
                                         };
                                     }
-                                    "pin" => {
+                                    "pin" if !shield => {
                                         st.pinned_author = author.clone();
                                         st.pinned_text = text.clone();
                                         st.pinned_avatar = avatar.clone();
@@ -4938,7 +4991,7 @@ fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveSt
                             }
                         }
 
-                        if is_question && auto_pin_q {
+                        if is_question && auto_pin_q && !shield {
                             st.pinned_author = author.clone();
                             st.pinned_text = text.clone();
                             st.pinned_avatar = avatar.clone();

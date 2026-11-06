@@ -625,6 +625,21 @@ fn default_tiktok_helper() -> String { "@second_compte".to_string() }
 
 fn default_true() -> bool { true }
 
+/// Ajoute les polices emoji/symboles de Windows en secours : sans elles, egui affiche « □ »
+/// à la place de 🛡️ ⏱️ 🗳️… (les glyphes sont rendus en monochrome)
+fn install_windows_emoji_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+    for (name, file) in [("segoe_emoji", r"C:\Windows\Fonts\seguiemj.ttf"), ("segoe_symbol", r"C:\Windows\Fonts\seguisym.ttf")] {
+        if let Ok(bytes) = std::fs::read(file) {
+            fonts.font_data.insert(name.to_string(), egui::FontData::from_owned(bytes));
+            for family in [FontFamily::Proportional, FontFamily::Monospace] {
+                fonts.families.entry(family).or_default().push(name.to_string());
+            }
+        }
+    }
+    ctx.set_fonts(fonts);
+}
+
 /// Bascule de branche (boutons de la régie et raccourcis F9–F11)
 fn apply_branch(st: &mut FullLiveState, branch_key: &str) {
     st.branch = branch_key.to_string();
@@ -640,6 +655,12 @@ fn apply_branch(st: &mut FullLiveState, branch_key: &str) {
         "politique" => {
             st.custom_topic = "FRONT MILITANT : ANTIFA • FÉMINISTE • ANTICAPITALISTE".to_string();
             st.custom_sub = "✊ Justice sociale, égalité & riposte populaire • Débat en direct".to_string();
+            st.box_mode = "combine".to_string();
+            st.emergency_visible = false;
+        }
+        "chill" => {
+            st.custom_topic = "☕ CHILL & DÉTENTE : ON PREND LE TEMPS".to_string();
+            st.custom_sub = "Discussion posée • Écoute & bienveillance • Vos questions en direct".to_string();
             st.box_mode = "combine".to_string();
             st.emergency_visible = false;
         }
@@ -1968,7 +1989,7 @@ impl TelecommandeApp {
             }
 
             let b4_col = if current_branch == "chill" { Color32::from_rgb(16, 185, 129) } else { Color32::from_rgb(20, 48, 38) };
-            if ui.add_sized([btn_w, 30.0], egui::Button::new(RichText::new("[F8] Chill").strong().size(11.0).color(Color32::WHITE)).fill(b4_col)).clicked() {
+            if ui.add_sized([btn_w, 30.0], egui::Button::new(RichText::new("☕ Chill").strong().size(11.0).color(Color32::WHITE)).fill(b4_col)).clicked() {
                 self.set_branch("chill");
             }
         });
@@ -6187,10 +6208,11 @@ fn main() -> eframe::Result<()> {
     let res = eframe::run_native(
         "TELECOMMANDE_RUST",
         options,
-        Box::new(move |_cc| {
+        Box::new(move |cc| {
             if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(app_path("run_diag.log")) {
                 let _ = writeln!(f, "ETAPE 5: Creation de TelecommandeApp dans run_native...");
             }
+            install_windows_emoji_fonts(&cc.egui_ctx);
             Ok(Box::new(TelecommandeApp::new(state, audio_peak_app)))
         }),
     );

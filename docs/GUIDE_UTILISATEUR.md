@@ -53,7 +53,7 @@ La régie affiche tes scènes à des adresses locales, visibles uniquement sur t
 
 ### La barre du haut (toujours visible)
 - **🛡️ BOUCLIER ANTI-RAID (F8)** : le bouton d'urgence en cas d'attaque dans le chat (voir §5).
-- **LIVE RÉGIE v2.1.1** : le nom et la version.
+- **LIVE RÉGIE v2.1.2** : le nom et la version.
 - **Format** : bascule entre les scènes 9:16 et 16:9.
 - **Mode Mini** : une petite fenêtre avec l'essentiel, à garder dans un coin de l'écran.
 - **Les boutons de branches** (💜 VSS & Inceste, ✊ Politique, 🎸 Musique, ☕ Chill…) changent le thème du live. Les 3 premiers ont les raccourcis **F9, F10, F11**.
@@ -129,6 +129,23 @@ Quand quelqu'un écrit un mot comme « aide », « 119 », « 3919 » ou « urge
 - **Article** : onglet **[ Presse ]**. Colle le lien, clique **🪄 Extraire**, puis ouvre la fenêtre dédiée.
 - **Sondage** : onglet **🗳️ Sondages & Chat**. Écris la question et les choix ; les spectateurs votent en tapant `!1`, `!2`, `!3` ou `!4`.
 - **Encart d'annonce** : onglet **🪧 Bannières**. Écris ton message, et **F4** l'affiche ou le masque.
+
+### Placer et redimensionner les encarts
+Directement sur la scène, ouverte dans le navigateur ou dans TikTok LIVE Studio :
+- **glisse** un encart pour le déplacer ;
+- tire ses **bords ou son coin** pour le redimensionner.
+
+Le contenu suit automatiquement :
+- l'annonce, les numéros d'urgence, l'avertissement et la question épinglée **grossissent ou rétrécissent** pour remplir le cadre, sans jamais déborder ;
+- la grille des numéros passe sur 1, 2 ou 3 colonnes selon la largeur ;
+- la vidéo occupe tout son encart.
+
+La disposition est **enregistrée par Live Régie** : tu retrouves la même dans TikTok LIVE Studio et dans le navigateur, même après une relance.
+
+Réglages dans **Préférences → 🖼️ Mise en page des scènes** :
+- ajustement automatique activé ou non ;
+- vidéo en « Cadre entier » ou en « Remplir » ;
+- **↺ Réinitialiser la mise en page**, qui remet tous les encarts à leur place d'origine sur toutes les scènes.
 
 ### Si le chat se coupe
 Pas besoin de toucher à quoi que ce soit : la régie **se reconnecte toute seule**. Le statut du chat indique « nouvelle tentative dans N s ».

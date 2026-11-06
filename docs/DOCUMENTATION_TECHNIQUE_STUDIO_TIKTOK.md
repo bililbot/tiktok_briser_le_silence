@@ -1,5 +1,5 @@
 # 📜 DOCUMENTATION TECHNIQUE — LIVE RÉGIE
-**Version :** 2.1.1 (`rust_studio/Cargo.toml`, voir [CHANGELOG](../CHANGELOG.md)) • **Système :** Windows (x64) • **Langages :** Rust (régie egui 0.29) & HTML5/CSS3/ES6 (scènes) & Python (pont chat)
+**Version :** 2.1.2 (`rust_studio/Cargo.toml`, voir [CHANGELOG](../CHANGELOG.md)) • **Système :** Windows (x64) • **Langages :** Rust (régie egui 0.29) & HTML5/CSS3/ES6 (scènes) & Python (pont chat)
 **Dernière mise à jour de la doc :** 06/11/2026 — alignée sur `rust_studio/src/main.rs`
 
 > Ce document décrit le **fonctionnement interne**. Pour l'utilisation au quotidien, voir le [guide utilisateur](GUIDE_UTILISATEUR.md).
@@ -79,6 +79,7 @@ graph TD
 | `GET /assets/...` | Images (PNG, WEBP, GIF, sinon `image/jpeg`) |
 | `GET /video_stream` | Vidéo locale active, par blocs `206 Partial Content` |
 | `GET /jingle_stream` | Fichier audio du jingle en cours |
+| `POST /layout_save` | Mise en page d'une scène `{format, layout}` (format `9_16` ou `16_9`) (64 Ko max), stockée dans `stage_layouts` |
 | `POST /chat_ingest` | Réception des événements du pont chat (`status`, `comment`, `gift`, `share`, `follow`) |
 
 Tous les fichiers (overlays, images, JSON, `run_diag.log`) sont lus et écrits dans le **dossier du studio** (`get_app_dir()`). C'est le premier dossier contenant `stage_solution_b.html` parmi le dossier de l'exe et ses 3 parents, sinon le dossier courant. L'exe fonctionne donc où qu'il soit lancé, y compris depuis `rust_studio/target/release`.
@@ -400,3 +401,25 @@ Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).
   3. committer, puis poser le tag `git tag -a vX.Y.Z -m "…"` ;
   4. pousser `main` et le tag (`git push origin main --tags`).
 * **Git** : on développe sur une branche dédiée (`feat/…`, `fix/…`, `release/…`), puis on fusionne dans `main` en avance rapide. Dépôt privé : `github.com/bililbot/tiktok_briser_le_silence`.
+
+---
+
+## 🖼️ 17. Encarts Adaptatifs & Mise en Page des Scènes
+
+* **Encarts déplaçables** (`.draggable-widget`) : position et taille en pourcentage de la scène (`stageRoot`).
+* **Sauvegarde** (`saveLayout`) : `{leftPct, topPct, widthPct, heightPct}` par encart.
+  * Elle est fusionnée avec la disposition précédente, pour que les encarts masqués gardent leur position.
+  * Elle est écrite dans le `localStorage` (clé `bls_stage_layout_v4` en 9:16, `bls_stage_layout_16_9_v2` en 16:9) **et** envoyée à la régie par `POST /layout_save`.
+* **Régie** : `FullLiveState.stage_layouts["9_16" | "16_9"]` est persisté avec l'état.
+  * Au premier état reçu, la scène applique la disposition de la régie.
+  * Si la régie n'en a pas encore, la scène lui transmet celle de son navigateur (migration).
+  * `stage_layout_reset_id` est incrémenté par « ↺ Réinitialiser la mise en page ». Les scènes ouvertes appellent alors `resetWidgetPositions()`. Une scène rouverte plus tard compare cet identifiant à `localStorage[<clé>_reset]` et oublie sa disposition locale périmée.
+* **Ajustement du contenu** (`fitWidget`), pour l'annonce, les urgences, l'avertissement et la question épinglée :
+  * le contenu de la carte est enveloppé une fois dans `.fit-zoom`, qui reprend la disposition flex de la carte ;
+  * quand l'encart a une hauteur explicite, une recherche dichotomique (12 itérations) trouve le plus grand `zoom` CSS, entre 0,2 et 4, pour lequel la carte ne déborde pas (`scrollHeight` / `scrollWidth` ≤ taille visible) ;
+  * le résultat est mis en cache sur « taille du cadre + HTML du contenu » ;
+  * le calcul est relancé par un `ResizeObserver` et à chaque état reçu (`applyAdaptive`) ;
+  * au début d'un redimensionnement, la hauteur de ces encarts est figée, si bien qu'élargir le cadre agrandit le texte ;
+  * la grille des urgences passe en `repeat(auto-fit, minmax(12em, 1fr))`.
+* **Vidéo** : avec une hauteur explicite, `#videoWidget.fill-on` fait occuper à la zone vidéo toute la hauteur, sous le bandeau. `object-fit` suit `video_fit` (`contain` ou `cover`). L'iframe YouTube remplit l'encart et cadre elle-même la vidéo.
+* **Réglages** (Préférences → « Mise en page des scènes ») : `fit_content_auto`, `video_fit`, réinitialisation.

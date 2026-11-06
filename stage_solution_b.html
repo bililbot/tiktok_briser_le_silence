@@ -1070,8 +1070,14 @@
             document.documentElement.style.setProperty("--music-font-scale", FONT_SCALES[fontScaleIdx]);
         }
 
+        // Mise en page : enregistrée dans le navigateur ET dans la régie (/layout_save), pour être identique
+        // dans TikTok LIVE Studio, OBS et le navigateur. Les encarts masqués gardent leur dernière position.
+        const STAGE_FORMAT = "9_16";
+        const LAYOUT_KEY = "bls_stage_layout_v4";
+        let savedLayout = {};
+
         function saveLayout() {
-            const layout = {};
+            const layout = Object.assign({}, savedLayout);
             const stage = document.getElementById("stageRoot");
             const sw = stage.clientWidth || 1;
             const sh = stage.clientHeight || 1;
@@ -1086,31 +1092,36 @@
                     };
                 }
             });
-            localStorage.setItem("bls_stage_layout_v4", JSON.stringify(layout));
+            savedLayout = layout;
+            try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch (e) {}
+            fetch("http://127.0.0.1:8765/layout_save", { method: "POST", body: JSON.stringify({ format: STAGE_FORMAT, layout }) }).catch(() => {});
+        }
+
+        function applyLayout(layout) {
+            savedLayout = Object.assign({}, layout || {});
+            WIDGET_IDS.forEach(id => {
+                const el = document.getElementById(id);
+                const cfg = savedLayout[id];
+                if (el && cfg) {
+                    el.style.left = cfg.leftPct.toFixed(2) + "%";
+                    el.style.top = cfg.topPct.toFixed(2) + "%";
+                    el.style.width = cfg.widthPct.toFixed(2) + "%";
+                    el.style.height = cfg.heightPct ? cfg.heightPct.toFixed(2) + "%" : "";
+                }
+            });
         }
 
         function loadLayout() {
             try {
-                const raw = localStorage.getItem("bls_stage_layout_v4");
-                if (!raw) return;
-                const layout = JSON.parse(raw);
-                WIDGET_IDS.forEach(id => {
-                    const el = document.getElementById(id);
-                    const cfg = layout[id];
-                    if (el && cfg) {
-                        el.style.left = cfg.leftPct.toFixed(2) + "%";
-                        el.style.top = cfg.topPct.toFixed(2) + "%";
-                        el.style.width = cfg.widthPct.toFixed(2) + "%";
-                        if (cfg.heightPct) {
-                            el.style.height = cfg.heightPct.toFixed(2) + "%";
-                        }
-                    }
-                });
+                const raw = localStorage.getItem(LAYOUT_KEY);
+                if (raw) applyLayout(JSON.parse(raw));
             } catch (e) {}
         }
-
         function resetWidgetPositions() {
-            localStorage.removeItem("bls_stage_layout_v4");
+            try { localStorage.removeItem(LAYOUT_KEY); } catch (e) {}
+            savedLayout = {};
+            WIDGET_IDS.forEach(id => { const el = document.getElementById(id); if (el) el.style.height = ""; });
+            fetch("http://127.0.0.1:8765/layout_save", { method: "POST", body: JSON.stringify({ format: STAGE_FORMAT, layout: {} }) }).catch(() => {});
             const e = document.getElementById("emergencyWidget");
             e.style.left = "3%"; e.style.top = "18%"; e.style.width = "94%";
             const m = document.getElementById("musicWidget");
@@ -1690,6 +1701,7 @@
                 if (typeof renderShield === "function") renderShield(st);
                 if (typeof setTimerState === "function") setTimerState(st);
                 if (typeof queueThanks === "function") queueThanks(st);
+                if (typeof applyAdaptive === "function") applyAdaptive(st);
                 if (st.pinned_visible && st.pinned_text) {
                     document.getElementById("pinnedAuthorDisplay").textContent = st.pinned_author || "Spectateur";
                     const msgEl = document.getElementById("pinnedMsgDisplay");
@@ -1908,6 +1920,130 @@
         setInterval(syncWithRustBackend, 250);
         syncWithRustBackend();
     </script>
+    <!-- Encarts adaptatifs : le contenu s'ajuste à la taille du cadre, la vidéo remplit son encart,
+         la mise en page est partagée avec la régie (même disposition dans TikTok LIVE Studio, OBS, navigateur) -->
+    <style>
+        .draggable-widget.fit-on > .fit-card { height: 100%; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
+        .fit-zoom { width: 100%; min-width: 0; }
+        #emergencyWidget.fit-on .emerg-grid { grid-template-columns: repeat(auto-fit, minmax(12em, 1fr)); }
+        #videoWidget.fill-on .video-monitor-box { height: 100%; }
+        #videoWidget.fill-on .video-viewport { flex: 1; aspect-ratio: auto; min-height: 0; }
+        .video-viewport video { object-fit: var(--video-fit, contain); }
+    </style>
+    <script>
+        // Encarts dont le contenu (texte, numéros) s'ajuste au cadre quand on lui a donné une hauteur
+        const FIT_WIDGET_IDS = ["customBoxWidget", "emergencyWidget", "twWidget", "pinnedCommentWidget"];
+        let fitAuto = true;
+        let layoutFromRegieDone = false;
+        let lastLayoutResetId = null;
+
+        // Enveloppe le contenu de la carte dans un conteneur zoomable (une seule fois)
+        function prepareFitWidget(w) {
+            if (w._fitZoom) return true;
+            const card = Array.from(w.children).find(c => !c.classList.contains("resize-handle"));
+            if (!card) return false;
+            const cs = getComputedStyle(card);
+            const zoom = document.createElement("div");
+            zoom.className = "fit-zoom";
+            // Le conteneur reprend la disposition de la carte (flex, alignement, espacements)
+            ["display", "flexDirection", "flexWrap", "alignItems", "justifyContent", "gap"].forEach(p => { zoom.style[p] = cs[p]; });
+            while (card.firstChild) zoom.appendChild(card.firstChild);
+            card.appendChild(zoom);
+            card.classList.add("fit-card");
+            w._fitCard = card;
+            w._fitZoom = zoom;
+            w._fitKey = "";
+            return true;
+        }
+
+        // Plus grand zoom (entre 0,2 et 4) pour lequel le contenu tient dans le cadre, sans déborder
+        function fitWidget(w) {
+            if (!prepareFitWidget(w)) return;
+            const card = w._fitCard, zoom = w._fitZoom;
+            const active = fitAuto && !!w.style.height && w.offsetHeight > 0;
+            w.classList.toggle("fit-on", active);
+            if (!active) {
+                if (zoom.style.zoom) { zoom.style.zoom = ""; w._fitKey = ""; }
+                return;
+            }
+            const key = card.clientWidth + "x" + card.clientHeight + "|" + zoom.innerHTML;
+            if (key === w._fitKey) return;
+            let lo = 0.2, hi = 4;
+            for (let i = 0; i < 12; i++) {
+                const mid = (lo + hi) / 2;
+                zoom.style.zoom = mid;
+                if (card.scrollHeight <= card.clientHeight + 1 && card.scrollWidth <= card.clientWidth + 1) lo = mid;
+                else hi = mid;
+            }
+            zoom.style.zoom = lo.toFixed(3);
+            w._fitKey = key;
+        }
+
+        function fitAllWidgets() {
+            FIT_WIDGET_IDS.forEach(id => {
+                const w = document.getElementById(id);
+                if (w) fitWidget(w);
+            });
+            const v = document.getElementById("videoWidget");
+            if (v) v.classList.toggle("fill-on", !!v.style.height);
+        }
+
+        // Appelé à chaque état reçu de la régie
+        function applyAdaptive(st) {
+            fitAuto = st.fit_content_auto !== false;
+            document.documentElement.style.setProperty("--video-fit", st.video_fit === "cover" ? "cover" : "contain");
+
+            const resetId = st.stage_layout_reset_id || 0;
+            if (lastLayoutResetId === null) {
+                lastLayoutResetId = resetId;
+                // Mise en page de ce navigateur périmée (réinitialisée depuis la régie entre-temps) : on l'oublie
+                let localReset = 0;
+                try { localReset = Number(localStorage.getItem(LAYOUT_KEY + "_reset") || 0); } catch (e) {}
+                if (localReset !== resetId) {
+                    resetWidgetPositions();
+                    try { localStorage.setItem(LAYOUT_KEY + "_reset", String(resetId)); } catch (e) {}
+                }
+            } else if (resetId !== lastLayoutResetId) {
+                lastLayoutResetId = resetId;
+                resetWidgetPositions();
+                try { localStorage.setItem(LAYOUT_KEY + "_reset", String(resetId)); } catch (e) {}
+            }
+
+            if (!layoutFromRegieDone) {
+                layoutFromRegieDone = true;
+                const fromRegie = (st.stage_layouts || {})[STAGE_FORMAT];
+                if (fromRegie && Object.keys(fromRegie).length) {
+                    applyLayout(fromRegie);
+                } else if (Object.keys(savedLayout).length) {
+                    // Première fois : on transmet à la régie la disposition déjà enregistrée dans ce navigateur
+                    fetch("http://127.0.0.1:8765/layout_save", { method: "POST", body: JSON.stringify({ format: STAGE_FORMAT, layout: savedLayout }) }).catch(() => {});
+                }
+            }
+            fitAllWidgets();
+        }
+
+        // Au début d'un redimensionnement, la hauteur des encarts adaptatifs est fixée :
+        // élargir le cadre agrandit alors le texte au lieu de seulement allonger les lignes
+        document.querySelectorAll(".resize-handle").forEach(handle => {
+            handle.addEventListener("mousedown", () => {
+                const id = handle.getAttribute("data-target");
+                const w = document.getElementById(id);
+                const stage = document.getElementById("stageRoot");
+                if (w && stage && FIT_WIDGET_IDS.includes(id) && !w.style.height) {
+                    w.style.height = ((w.offsetHeight / (stage.clientHeight || 1)) * 100).toFixed(2) + "%";
+                }
+            });
+        });
+
+        if (window.ResizeObserver) {
+            const ro = new ResizeObserver(() => requestAnimationFrame(fitAllWidgets));
+            FIT_WIDGET_IDS.concat(["videoWidget"]).forEach(id => {
+                const w = document.getElementById(id);
+                if (w) ro.observe(w);
+            });
+        }
+    </script>
+
     <!-- Remerciements auto : bulle en bas à droite, une à la fois pendant 3,5 s -->
     <style>
         #thanksBubble { position: fixed; right: 3vmin; bottom: 14vh; z-index: 9100; max-width: 78vmin; padding: 2.2vmin 3.4vmin; border-radius: 3vmin; font-size: 4.2vmin !important; background: linear-gradient(135deg, rgba(88, 28, 135, 0.95), rgba(30, 10, 45, 0.95)); border: 0.3vmin solid #c084fc; box-shadow: 0 0 2.5vmin rgba(192, 132, 252, 0.55); color: #fff; font-family: 'Space Grotesk', sans-serif; font-size: 2.3vmin; font-weight: 700; line-height: 1.25; opacity: 0; transform: translateX(120%); transition: opacity 0.35s ease, transform 0.35s ease; pointer-events: none; }

@@ -11,6 +11,19 @@ Chaque version est marquée par un tag Git (`v2.1.0`…), ce qui permet d'y reve
 
 ---
 
+## [2.1.2] — 2026-11-06
+
+### Améliorations
+- **Le contenu des encarts s'adapte à leur taille.** L'annonce, les numéros d'urgence, l'avertissement et la question épinglée prennent automatiquement la plus grande taille qui tient dans le cadre, recalculée pendant le redimensionnement et quand le texte change.
+  - La grille des numéros d'urgence choisit seule son nombre de colonnes.
+  - Réglable dans Préférences → « Mise en page des scènes » (case à cocher).
+- **La vidéo remplit son encart** quand on lui donne une hauteur, en mode « Cadre entier » ou « Remplir ».
+- **Mise en page enregistrée par la régie** (position, largeur **et hauteur** de chaque encart, pour chaque format). Elle est identique dans TikTok LIVE Studio, OBS et le navigateur, et résiste aux relances et au vidage du cache. Elle se réinitialise depuis la régie.
+
+### Corrections
+- La hauteur des encarts n'était pas sauvegardée en 16:9.
+- Déplacer un encart effaçait la position enregistrée des encarts masqués à ce moment-là.
+
 ## [2.1.1] — 2026-11-06
 
 ### Corrections

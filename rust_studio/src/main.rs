@@ -530,6 +530,18 @@ pub struct FullLiveState {
     pub timer_gong_done: bool,
     // Remerciements automatiques : les scènes affichent les éléments dont l'id est plus récent que le dernier vu
     // File privée des demandes d'aide (jamais affichée sur les scènes) pour recontacter les personnes après le live
+    // Mise en page des scènes (position + taille de chaque encart), par format "9_16" / "16_9",
+    // enregistrée par la régie pour être la même dans TikTok LIVE Studio, OBS et le navigateur
+    #[serde(default)]
+    pub stage_layouts: std::collections::BTreeMap<String, serde_json::Value>,
+    #[serde(default)]
+    pub stage_layout_reset_id: u64,
+    // Contenu des encarts ajusté automatiquement à leur taille (texte, numéros d'urgence…)
+    #[serde(default = "default_true")]
+    pub fit_content_auto: bool,
+    // Vidéo dans son encart : "contain" (cadre entier) | "cover" (remplir, léger recadrage)
+    #[serde(default = "default_video_fit")]
+    pub video_fit: String,
     // Branches configurables (copie de branches.json, envoyée aux scènes via /state)
     #[serde(default)]
     pub branches: Vec<BranchConfig>,
@@ -630,6 +642,10 @@ fn default_tiktok_host() -> String { "@lebyb".to_string() }
 fn default_tiktok_helper() -> String { "@second_compte".to_string() }
 
 fn default_true() -> bool { true }
+
+fn default_video_fit() -> String {
+    "contain".to_string()
+}
 
 /// Branche du live entièrement configurable (branches.json, onglet Préférences)
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -876,6 +892,10 @@ impl Default for FullLiveState {
             timer_end_ts: 0.0,
             timer_remaining_secs: 0.0,
             timer_gong_done: false,
+            stage_layouts: Default::default(),
+            stage_layout_reset_id: 0,
+            fit_content_auto: true,
+            video_fit: default_video_fit(),
             branches: Vec::new(),
             journal: LiveJournal::default(),
             help_alert_seq: 0,
@@ -5079,6 +5099,8 @@ impl TelecommandeApp {
 
         // 2. Branches du live (noms, couleurs, textes, fonds) — remplace l'ancien gestionnaire à 8 décors fixes
         self.render_branch_editor(ui);
+        ui.add_space(8.0);
+        self.render_stage_layout_controls(ui);
 
         ui.add_space(8.0);
 
@@ -5171,6 +5193,65 @@ impl TelecommandeApp {
                         save_state_json(&st);
                     }
                 }
+            });
+    }
+
+    /// Mise en page des scènes : ajustement automatique du contenu, cadrage vidéo, réinitialisation
+    fn render_stage_layout_controls(&mut self, ui: &mut egui::Ui) {
+        let (mut fit_auto, mut video_fit, saved_formats) = self
+            .state
+            .lock()
+            .map(|st| {
+                let formats: Vec<String> = st
+                    .stage_layouts
+                    .iter()
+                    .filter(|(_, v)| v.as_object().map(|o| !o.is_empty()).unwrap_or(false))
+                    .map(|(k, _)| k.replace('_', ":"))
+                    .collect();
+                (st.fit_content_auto, st.video_fit.clone(), formats)
+            })
+            .unwrap_or((true, "contain".to_string(), Vec::new()));
+        egui::Frame::none()
+            .fill(Color32::from_rgb(22, 25, 36))
+            .stroke(Stroke::new(1.2_f32, Color32::from_rgb(59, 130, 246)))
+            .rounding(Rounding::same(8.0))
+            .inner_margin(egui::Margin::same(12.0))
+            .show(ui, |ui| {
+                ui.label(RichText::new("🖼️ MISE EN PAGE DES SCÈNES").strong().size(13.0).color(Color32::from_rgb(147, 197, 253)));
+                ui.label(
+                    RichText::new("Déplace et redimensionne les encarts directement sur la scène : la disposition est enregistrée ici.")
+                        .size(10.5)
+                        .color(Color32::from_rgb(156, 163, 175)),
+                );
+                ui.add_space(6.0);
+                let mut changed = false;
+                changed |= ui
+                    .checkbox(&mut fit_auto, "Ajuster le contenu à la taille des encarts (annonce, urgences, avertissement, question)")
+                    .changed();
+                ui.horizontal(|ui| {
+                    ui.label("Vidéo dans son encart :");
+                    changed |= ui.selectable_value(&mut video_fit, "contain".to_string(), "Cadre entier").changed();
+                    changed |= ui.selectable_value(&mut video_fit, "cover".to_string(), "Remplir (recadre un peu)").changed();
+                });
+                if changed {
+                    if let Ok(mut st) = self.state.lock() {
+                        st.fit_content_auto = fit_auto;
+                        st.video_fit = video_fit.clone();
+                        save_state_json(&st);
+                    }
+                }
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    let saved = if saved_formats.is_empty() { "aucune enregistrée".to_string() } else { format!("enregistrée pour {}", saved_formats.join(" et ")) };
+                    ui.label(RichText::new(format!("Disposition : {}", saved)).size(10.5).color(Color32::GRAY));
+                    if ui.button("↺ Réinitialiser la mise en page").on_hover_text("Remet tous les encarts à leur place et taille d'origine, sur toutes les scènes").clicked() {
+                        if let Ok(mut st) = self.state.lock() {
+                            st.stage_layouts.clear();
+                            st.stage_layout_reset_id += 1;
+                            save_state_json(&st);
+                        }
+                    }
+                });
             });
     }
 
@@ -5800,6 +5881,26 @@ fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveSt
                 }
             }
             let _ = req.respond(Response::from_string("ok").with_header(cors).with_header(conn_close));
+            return;
+        }
+
+        if url.starts_with("/layout_save") && req.method() == &tiny_http::Method::Post {
+            // Une scène envoie sa mise en page après un déplacement / redimensionnement
+            let mut body = Vec::new();
+            let _ = req.as_reader().take(64 * 1024).read_to_end(&mut body);
+            let mut ok = false;
+            if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&body) {
+                let format = val.get("format").and_then(|v| v.as_str()).unwrap_or("");
+                if let (true, Some(layout)) = (format == "9_16" || format == "16_9", val.get("layout").filter(|l| l.is_object())) {
+                    if let Ok(mut st) = state.lock() {
+                        st.stage_layouts.insert(format.to_string(), layout.clone());
+                        save_state_json(&st);
+                        ok = true;
+                    }
+                }
+            }
+            let resp = if ok { Response::from_string("ok") } else { Response::from_string("invalid").with_status_code(400) };
+            let _ = req.respond(resp.with_header(cors).with_header(conn_close));
             return;
         }
 

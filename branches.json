@@ -1,0 +1,58 @@
+[
+  {
+    "id": "vss",
+    "label": "💜 VSS & Inceste",
+    "color": "#8b5cf6",
+    "accent": "#d8b4fe",
+    "tag": "💜 PAROLE AUX SURVIVANT·E·S",
+    "scene_title": "PAROLE AUX SURVIVANT·E·S — INCESTE & VSS",
+    "topic": "PAROLE AUX SURVIVANT·E·S : BRISER LE TABOU DE L'INCESTE",
+    "sub": "📞 Aide 24h/24 : 119 (Enfance) • 3919 (Violences) • Chat bienveillant",
+    "box_mode": "combine",
+    "auto_emergency": true,
+    "bg_9_16": "/assets/bg_branche1_vss.jpg",
+    "bg_16_9": "/assets/bg_branche1_vss_wide16_9.jpg"
+  },
+  {
+    "id": "politique",
+    "label": "✊ Politique",
+    "color": "#dc2626",
+    "accent": "#fca5a5",
+    "tag": "✊ FRONT MILITANT",
+    "scene_title": "ANTIFA • FÉMINISTE • ANTICAPITALISTE",
+    "topic": "FRONT MILITANT : ANTIFA • FÉMINISTE • ANTICAPITALISTE",
+    "sub": "✊ Justice sociale, égalité & riposte populaire • Débat en direct",
+    "box_mode": "combine",
+    "auto_emergency": false,
+    "bg_9_16": "/assets/bg_branche2_politique.jpg",
+    "bg_16_9": "/assets/bg_branche2_politique_wide16_9.jpg"
+  },
+  {
+    "id": "musique",
+    "label": "🎸 Musique",
+    "color": "#d97706",
+    "accent": "#fdba74",
+    "tag": "🎸 UNDERGROUND INSURRECTION",
+    "scene_title": "UNDERGROUND INSURRECTION — LIVE",
+    "topic": "UNDERGROUND INSURRECTION : LA BANDE-SON DE NOS LUTTES",
+    "sub": "🔊 Punk • Techno • Hardcore • Hip-Hop • Metal • Grime • Dub",
+    "box_mode": "musique",
+    "auto_emergency": false,
+    "bg_9_16": "/assets/bg_branche3_musique.jpg",
+    "bg_16_9": "/assets/bg_branche3_musique_wide16_9.jpg"
+  },
+  {
+    "id": "chill",
+    "label": "☕ Chill",
+    "color": "#10b981",
+    "accent": "#6ee7b7",
+    "tag": "☕ ESPACE CHILL & ÉCHANGE",
+    "scene_title": "CHILL • DÉCOMPRESSION & DISCUSSION",
+    "topic": "☕ CHILL & DÉTENTE : ON PREND LE TEMPS",
+    "sub": "Discussion posée • Écoute & bienveillance • Vos questions en direct",
+    "box_mode": "combine",
+    "auto_emergency": false,
+    "bg_9_16": "/assets/custom_bg_chill_9_16.jpg?v=1793718602",
+    "bg_16_9": "/assets/custom_bg_chill_16_9.jpg?v=1793718681"
+  }
+]

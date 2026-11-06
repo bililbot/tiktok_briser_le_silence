@@ -22,6 +22,9 @@ base64 = "0.22"
 rfd = "0.15"
 tiny_http = "0.12"
 
+[build-dependencies]
+winresource = "0.1"
+
 [dependencies.windows]
 version = "0.58"
 features = [

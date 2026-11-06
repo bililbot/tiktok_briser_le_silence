@@ -1,6 +1,27 @@
-# 📜 DOCUMENTATION TECHNIQUE — STUDIO LIVE TIKTOK « BRISER LE SILENCE »
-**Version :** 2.0.0 (`rust_studio/Cargo.toml`) • **Système :** Windows (x64) • **Langages :** Rust (Backend/Régie egui 0.29) & HTML5/CSS3/ES6 (Overlays OBS)
+# 📜 DOCUMENTATION TECHNIQUE — LIVE RÉGIE
+**Version :** 2.1.0 (`rust_studio/Cargo.toml`, voir [CHANGELOG](../CHANGELOG.md)) • **Système :** Windows (x64) • **Langages :** Rust (régie egui 0.29) & HTML5/CSS3/ES6 (scènes) & Python (pont chat)
 **Dernière mise à jour de la doc :** 06/11/2026 — alignée sur `rust_studio/src/main.rs`
+
+> Ce document décrit le **fonctionnement interne**. Pour l'utilisation au quotidien, voir le [guide utilisateur](GUIDE_UTILISATEUR.md).
+
+**Live Régie** est la régie compagnon de **TikTok LIVE Studio** (PC), développée pour le live « Et si… Briser le Silence ».
+
+## 🗂️ 0. Carte du projet
+
+| Chemin | Rôle |
+| :--- | :--- |
+| `rust_studio/src/main.rs` | Régie (egui), serveur HTTP local, état partagé, threads (audio, média, raccourcis, chrono, journal, tappeur) |
+| `rust_studio/src/win_audio_media.rs` | WASAPI (VU-mètre), Windows Media Control (Spotify…), table des raccourcis `GLOBAL_HOTKEYS` |
+| `rust_studio/src/music_box.rs` | Exe séparé `Musique_Live_TikTok` : fenêtre « musique en cours » capturée dans TikTok LIVE Studio |
+| `rust_studio/build.rs` | Intègre l'icône et les métadonnées « Live Régie » dans les exe (`winresource`) |
+| `stage_solution_b.html` / `stage_16_9.html` | Scènes 9:16 et 16:9 |
+| `article_window.html` / `urgences_window.html` | Fenêtres dédiées presse et numéros d'urgence |
+| `tiktok_chat_bridge.py` | Pont chat TikTok (TikTokLive 7.x), avec reconnexion automatique |
+| `tools_python/scraper_article.py` | Extraction d'articles web (onglet Presse) |
+| `tools/generer_logo.ps1` / `tools/creer_raccourci.ps1` | Génération du logo et du raccourci de lancement |
+| `assets/` (`assets/logo/`) | Fonds de scène, tags, logo (`live_regie.ico`, `live_regie_256.png`, `live_regie_512.png`) |
+| `Lancer_Studio_TikTok.bat` | Lanceur (relatif à son dossier ; ferme une instance orpheline puis démarre la régie) |
+| `*.json` à la racine | Réglages : voir §14 |
 
 ---
 
@@ -10,7 +31,7 @@ Le studio repose sur une architecture découplée, ultra-légère et résiliente
 
 ```mermaid
 graph TD
-    subgraph "Application Rust (Telecommande_Live_Rust.exe)"
+    subgraph "Live Régie (Telecommande_Live_Rust.exe)"
         UI["Interface Régie egui"]
         HTTP["Serveur Local tiny_http<br>(127.0.0.1:8765, 8 threads)"]
         STATE["État Partagé en Mémoire<br>Arc<Mutex<FullLiveState>>"]
@@ -50,15 +71,15 @@ graph TD
 ### Routes du serveur HTTP (`handle_http_request`)
 | Route | Rôle |
 | :--- | :--- |
-| `GET /state` | État complet `FullLiveState` en JSON |
+| `GET /state` | État `FullLiveState` en JSON, **sans** `help_alerts` ni `journal` (privés) |
 | `GET /stage` | Overlay 9:16 (`stage_solution_b.html`) |
 | `GET /stage_16_9` | Overlay 16:9 (`stage_16_9.html`) |
 | `GET /article` | Fenêtre Revue de presse (`article_window.html`) |
 | `GET /urgences` | Fenêtre numéros d'urgence (`urgences_window.html`) |
-| `GET /assets/...` | Images (PNG, sinon servies en `image/jpeg`) |
+| `GET /assets/...` | Images (PNG, WEBP, GIF, sinon `image/jpeg`) |
 | `GET /video_stream` | Vidéo locale active, par blocs `206 Partial Content` |
 | `GET /jingle_stream` | Fichier audio du jingle en cours |
-| `POST /chat_ingest` | Réception des événements du pont chat (`status` / `comment`) |
+| `POST /chat_ingest` | Réception des événements du pont chat (`status`, `comment`, `gift`, `share`, `follow`) |
 
 Tous les fichiers (overlays, images, JSON, `run_diag.log`) sont lus et écrits dans le **dossier du studio** (`get_app_dir()`). C'est le premier dossier contenant `stage_solution_b.html` parmi le dossier de l'exe et ses 3 parents, sinon le dossier courant. L'exe fonctionne donc où qu'il soit lancé, y compris depuis `rust_studio/target/release`.
 
@@ -66,21 +87,30 @@ La route `/assets/` refuse les chemins contenant `..`, `\` ou `:`, et sert PNG, 
 
 ---
 
-## 🎛️ 2. Structure des Onglets de la Régie Rust
+## 🎛️ 2. Structure des Onglets de la Régie
 
-La barre d'onglets affiche **6 onglets** sur deux rangées :
+**Barre du haut** (`render_shield_bar` + `render_top_quick_bar`, toujours visible) :
+- bouclier anti-raid ;
+- nom et version (`env!("CARGO_PKG_VERSION")`) ;
+- format 9:16 / 16:9 et mode mini ;
+- **sélecteur unique des branches** (généré depuis `branches.json`) ;
+- bascules urgences / TW / vidéo / jukebox.
 
-| N° | Onglet (libellé) | Fonctionnalités Clés |
+**7 onglets** sur deux rangées (`render_tab_selector`) :
+
+| Onglet (libellé) | Fonction (`render_tab_*`) | Contenu |
 | :--- | :--- | :--- |
-| **1** | **[ Régie ]** | • Sélecteur des **4 branches** : `VSS`, `Politique`, `Musique`, `☕ Chill`<br>• Titre du Live et Sous-titre personnalisés<br>• Bandeau d'annonce déroulant<br>• Bascule des formats cibles (9:16 ou 16:9) |
-| **2** | **[ YouTube ]** | • Champ de saisie d'URL YouTube universel (Shorts, Watch, Embed, ID)<br>• Options : `Autoplay`, `Loop`, `Controls`, `Mute`, `Anti-détection`<br>• Sélecteur de vidéos locales MP4/MKV |
-| **3** | **[ Presse ]** | • Scraping d'articles web depuis une URL (`tools_python/scraper_article.py`)<br>• Auto-scroll avec réglage de vitesse<br>• Personnalisation typographique, couleurs et badges |
-| **4** | **🗳️ Sondages** | • Sondages à chaud (choix via le chat)<br>• Jauge d'objectif Likes (`like_goal`)<br>• Modes chanson : `off` / `queue` / `vote` |
-| **5** | **🎵 Sons** | • VU-mètre WASAPI double écoute<br>• Lecteur d'état Spotify (Titre, Artiste, Pochette)<br>• Soundboard / jingles (`jingles_library.json`) |
-| **6** | **[ Préférences ]** | • Auto-Tappeur (voir §6)<br>• Compte TikTok hôte & compte secondaire<br>• Éditeur des branches (noms, couleurs, textes, fonds) |
+| **[ Régie ]** | `regie` | Chrono de débat, remerciements auto, demandes d'aide, journal du live, branche active, contenu du lecteur et du bandeau |
+| **[ YouTube ]** | `youtube` | URL YouTube (Shorts, Watch, Embed, ID) ou vidéo locale ; options `Autoplay`, `Loop`, `Controls`, `Mute`, `Anti-détection` |
+| **[ Presse ]** | `articles` | Extraction d'articles (`tools_python/scraper_article.py`), auto-défilement, personnalisation de la fenêtre |
+| **🪧 Bannières** | `bannieres` | Encart de texte libre (`custom_box_*`), bandeau d'avertissement (TW), affichage et configuration des numéros d'urgence |
+| **🗳️ Sondages & Chat** | `sondages` (+ `chat`) | Jauge de likes, sondage `!1`…`!4`, connexion au chat et bot modérateur, messages épinglés, jukebox `!musique` / `!sr` |
+| **🎵 Sons** | `soundboard` | Boîte à jingles (MP3 / vidéo, `jingles_library.json`) |
+| **[ Préférences ]** | `preferences` | Comptes TikTok, **éditeur des branches**, auto-tappeur |
 
-> ℹ️ L'enum `TelecommandeTab` contient aussi `Chat` et `Bannieres`, mais ils **n'apparaissent pas** dans la barre d'onglets.
-> La configuration du bot chat et des numéros d'urgence s'ouvre dans des fenêtres séparées (`bot_config.json`, `emergency_numbers.json`).
+> ℹ️ L'onglet **Bannières** n'apparaissait plus dans la barre jusqu'en 2.0.0. Son contenu était donc inaccessible. Il est rétabli en 2.1.0.
+> L'onglet `Chat` n'a pas de bouton propre : son contenu est affiché dans « Sondages & Chat ».
+> La configuration du bot et celle des numéros d'urgence s'ouvrent dans des fenêtres séparées (`bot_config.json`, `emergency_numbers.json`).
 
 ---
 
@@ -140,7 +170,7 @@ Le lecteur YouTube des overlays (`stage_solution_b.html` et `stage_16_9.html`) :
 
 ---
 
-## ⌨️ Raccourcis Clavier Globaux
+## ⌨️ 6. Raccourcis Clavier Globaux
 
 Ils marchent même quand la régie est réduite ou n'a pas le focus.
 
@@ -161,7 +191,7 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 
 ---
 
-## 🛡️ Bouclier Anti-Raid
+## 🛡️ 7. Bouclier Anti-Raid
 
 * **Activation** : bouton rouge en haut de la régie, visible dans tous les onglets et en mode mini, ou **touche F8** (raccourci global, actif même quand la régie n'a pas le focus).
 * **État** : `shield_active` et `shield_text` dans `FullLiveState`. Les deux champs sont marqués `#[serde(default)]`, donc les anciennes sauvegardes restent compatibles. Le bouclier est conservé en cas de redémarrage.
@@ -176,7 +206,7 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 
 ---
 
-## ⏱️ Chrono de Débat
+## ⏱️ 8. Chrono de Débat
 
 * **Commandes** : un bloc en tête de l'onglet **[ Régie ]**, avec :
   * un nom d'intervenant·e (`timer_label`) ;
@@ -195,7 +225,7 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 
 ---
 
-## 📝 Journal du Live
+## 📝 9. Journal du Live
 
 * **Ce qui est noté** :
   * des compteurs (`journal.comments`, `gifts` en nombre total de cadeaux, `shares`, `follows`), incrémentés à la réception dans `/chat_ingest` ;
@@ -217,7 +247,7 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 
 ---
 
-## 🆘 File Privée des Demandes d'Aide
+## 🆘 10. File Privée des Demandes d'Aide
 
 * **Détection** : tout commentaire contenant un mot-clé d'un déclencheur `emergency` actif (`bot_config.json`, par exemple « aide, urgence, 119, 3919 ») est ajouté à `help_alerts` avec l'heure locale, le pseudo, le @handle et le texte.
 * **Avant le filtre anti-insultes** : un message d'aide qui contient une insulte est masqué du chat, mais il est quand même noté, et il affiche quand même les numéros d'urgence.
@@ -233,7 +263,7 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 
 ---
 
-## 🔌 Pont Chat TikTok & Reconnexion Automatique
+## 🔌 11. Pont Chat TikTok & Reconnexion Automatique
 
 * **Lancement** : depuis la régie, avec `python <dossier du studio>/tiktok_chat_bridge.py <pseudo>`.
   * Le pont est lancé dans le dossier du studio, sans fenêtre.
@@ -252,7 +282,7 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 
 ---
 
-## 💜 Remerciements Automatiques (Cadeaux, Partages, Follows)
+## 💜 12. Remerciements Automatiques (Cadeaux, Partages, Follows)
 
 * **Pont chat** (`tiktok_chat_bridge.py`, TikTokLive 7.x) : il envoie à `POST /chat_ingest` des événements :
   * `gift` (`gift`, `count`) : un cadeau en série n'est envoyé qu'une fois, à la fin de la série (`event.streaking`), avec le total `repeat_count` ;
@@ -267,7 +297,7 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 
 ---
 
-## 👆 6. Spécification Technique de l'Auto-Tappeur
+## 👆 13. Spécification Technique de l'Auto-Tappeur
 
 Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).
 
@@ -297,7 +327,7 @@ Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).
 
 ---
 
-## 💾 7. Persistance & Fichiers de Configuration
+## 💾 14. Persistance & Fichiers de Configuration
 
 ### `live_state.json` et `studio_preferences.json`
 * `save_state_json()` dépose l'état complet (`FullLiveState`) en mémoire. Un thread d'arrière-plan l'écrit **au plus une fois par seconde**, et seulement s'il a changé, dans `live_state.json` et `studio_preferences.json` du dossier du studio.
@@ -316,33 +346,57 @@ Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).
 | `emergency_numbers.json` | Liste des numéros d'aide affichés |
 | `jingles_library.json` | Bibliothèque de jingles |
 | `video_library.json` | Dossier et liste des vidéos locales |
+| `branches.json` | Branches du live (voir §3), créé au premier lancement |
 
-> ⚠️ Des copies anciennes existent encore dans `rust_studio/`. Elles ne sont plus utilisées : seules celles de la racine comptent.
+**Dossiers et fichiers exclus de Git** (`.gitignore`) : `live_state.json`, `studio_preferences.json`, `journaux/`, les `.exe`, `*.lnk`, `videos/`, `rust_studio/target/`.
+
+> ⚠️ Des copies anciennes de ces fichiers existent encore dans `rust_studio/`. Elles ne sont plus utilisées : seules celles de la racine comptent.
 
 ---
 
-## 🚀 8. Procédure de Déploiement & Maintenance
+## 🚀 15. Procédure de Déploiement & Maintenance
 
 1. **Vérification rapide** :
    ```bash
    cd rust_studio
    cargo check
    ```
-2. **Compilation Native** :
+2. **Compilation** (les deux exe, avec l'icône intégrée par `build.rs`) :
    ```bash
    cd rust_studio
-   cargo build --release --bin Telecommande_Live_Rust
-   cargo build --release --bin Musique_Live_TikTok
+   cargo build --release --bins
    ```
-3. **Déploiement Exécutable** :
-   Copier `rust_studio/target/release/Telecommande_Live_Rust.exe` (et `Musique_Live_TikTok.exe`) à la racine de `C:\laragon\www\tiktok_briser_le_silence\`.
-4. **Lancement** : `Lancer_Studio_TikTok.bat`.
-   * Il ferme une éventuelle instance précédente et les `pythonw.exe`.
-   * Il démarre l'exe depuis la racine.
+3. **Déploiement** : copier `rust_studio/target/release/Telecommande_Live_Rust.exe` et `Musique_Live_TikTok.exe` à la racine du projet.
+   * La régie doit être fermée, sinon l'exe est verrouillé.
+   * Garder les précédents dans `rust_studio/target/exe_precedents/` permet de revenir en arrière.
+4. **Lancement** : raccourci `Live Régie.lnk` (ou `Lancer_Studio_TikTok.bat`).
+   * Le `.bat` travaille dans son propre dossier (`%~dp0`).
+   * Il ferme une éventuelle instance orpheline et les `pythonw.exe`, puis démarre la régie.
    * Une seule instance de la régie peut tourner (mutex Windows).
-5. **Overlays dans OBS / TikTok Live Studio** :
-   * Scène 16:9 : `http://127.0.0.1:8765/stage_16_9`
+5. **Scènes dans TikTok LIVE Studio (ou OBS)** :
    * Scène 9:16 : `http://127.0.0.1:8765/stage`
+   * Scène 16:9 : `http://127.0.0.1:8765/stage_16_9`
    * Presse : `http://127.0.0.1:8765/article`
    * Urgences : `http://127.0.0.1:8765/urgences`
-6. **Chat TikTok** : le pont `tiktok_chat_bridge.py <pseudo>` nécessite `pip install TikTokLive`.
+   * La fenêtre musique se capture par son titre, `MUSIQUE_LIVE_TIKTOK` (à ne pas renommer).
+6. **Chat TikTok** : le pont `tiktok_chat_bridge.py <pseudo>` nécessite `pip install TikTokLive` (7.x).
+
+**Méthode de test sans fermer la régie de production** : impossible, à cause du mutex d'instance unique et du port 8765. Il faut fermer la régie avant de lancer une version de test. Avant chaque test, sauvegarder `live_state.json` et `studio_preferences.json`.
+
+---
+
+## 🏷️ 16. Identité, Version & Publication
+
+* **Nom** : Live Régie. Le titre de fenêtre `Live Régie — régie de live` est défini par la constante `APP_WINDOW_TITLE`, qui sert aussi à remettre la fenêtre au premier plan.
+* **Logo** : console de régie à 3 curseurs (couleurs des branches) et point rouge « en direct ».
+  * Il est généré en vectoriel par `tools/generer_logo.ps1` : PNG 256 et 512, et `.ico` 16 à 256 px (bitmaps 32 bits jusqu'à 128 px, PNG pour 256 px).
+  * L'icône de fenêtre vient de `assets/logo/live_regie_256.png` (`include_bytes!`).
+  * L'icône des exe et leurs métadonnées (nom, description, version) viennent de `build.rs` (`winresource`). Sans `rc.exe`, la compilation passe, mais sans icône, avec un avertissement.
+  * Le raccourci `Live Régie.lnk` est créé par `tools/creer_raccourci.ps1` (`-Bureau` pour une copie sur le Bureau).
+* **Versions** : `MAJEUR.MINEUR.CORRECTIF` dans `rust_studio/Cargo.toml`, affichée dans la régie. Le détail de chaque version est dans [CHANGELOG.md](../CHANGELOG.md).
+* **Publication d'une version** :
+  1. mettre à jour `Cargo.toml` et le `CHANGELOG.md` ;
+  2. compiler et déployer (§15) ;
+  3. committer, puis poser le tag `git tag -a vX.Y.Z -m "…"` ;
+  4. pousser `main` et le tag (`git push origin main --tags`).
+* **Git** : on développe sur une branche dédiée (`feat/…`, `fix/…`, `release/…`), puis on fusionne dans `main` en avance rapide. Dépôt privé : `github.com/bililbot/tiktok_briser_le_silence`.

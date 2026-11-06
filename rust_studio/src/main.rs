@@ -19,6 +19,9 @@ use win_audio_media::{
 };
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+/// Titre de la fenêtre (sert aussi à la retrouver pour la remettre au premier plan)
+const APP_WINDOW_TITLE: &str = "Live Régie — régie de live";
 const LIBRARY_FILE: &str = "video_library.json";
 const EMERGENCY_FILE: &str = "emergency_numbers.json";
 const BOT_CONFIG_FILE: &str = "bot_config.json";
@@ -2012,7 +2015,7 @@ impl TelecommandeApp {
         // Ligne 1: Titre compact + Switch Scène 9:16/16:9 + Bouton Mode Mini
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new(concat!("🎛️ STUDIO LIVE v", env!("CARGO_PKG_VERSION")))
+                RichText::new(concat!("🎛️ LIVE RÉGIE v", env!("CARGO_PKG_VERSION")))
                     .strong()
                     .size(13.0)
                     .color(Color32::WHITE),
@@ -5996,7 +5999,7 @@ fn bring_existing_window_to_front() -> bool {
     unsafe {
         use windows::core::HSTRING;
         use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, SetForegroundWindow, ShowWindow, SW_RESTORE};
-        let title = HSTRING::from("🎛️ TELECOMMANDE_RUST — Briser le Silence");
+        let title = HSTRING::from(APP_WINDOW_TITLE);
         if let Ok(hwnd) = FindWindowW(None, &title) {
             if !hwnd.is_invalid() {
                 let _ = ShowWindow(hwnd, SW_RESTORE);
@@ -6405,7 +6408,10 @@ fn main() -> eframe::Result<()> {
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("🎛️ TELECOMMANDE_RUST — Briser le Silence")
+            .with_title(APP_WINDOW_TITLE)
+            .with_icon(std::sync::Arc::new(
+                eframe::icon_data::from_png_bytes(include_bytes!("../../assets/logo/live_regie_256.png")).unwrap_or_default(),
+            ))
             .with_inner_size([540.0, 720.0])
             .with_min_inner_size([460.0, 500.0])
             .with_resizable(true)

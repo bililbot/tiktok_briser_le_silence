@@ -1,8 +1,9 @@
 @echo off
-cd /d "C:\laragon\www\tiktok_briser_le_silence"
+REM Live Régie — lanceur (fonctionne quel que soit le dossier du projet)
+cd /d "%~dp0"
 
 echo ========================================================
-echo   LANCEMENT DU STUDIO RUST - BRISER LE SILENCE
+echo   LIVE REGIE - lancement de la regie de live
 echo ========================================================
 
 REM Fermer les processus fantomes Python si presents
@@ -16,7 +17,7 @@ if "%ERRORLEVEL%"=="0" (
     timeout /t 1 /nobreak >nul
 )
 
-REM Lancer la Telecommande Rust
-start "" "C:\laragon\www\tiktok_briser_le_silence\Telecommande_Live_Rust.exe"
+REM Lancer la regie
+start "" "%~dp0Telecommande_Live_Rust.exe"
 
 exit /b 0

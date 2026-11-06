@@ -300,7 +300,11 @@ fn main() -> eframe::Result<()> {
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
+            // Titre inchangé : TikTok LIVE Studio capture cette fenêtre par son titre
             .with_title("MUSIQUE_LIVE_TIKTOK")
+            .with_icon(std::sync::Arc::new(
+                eframe::icon_data::from_png_bytes(include_bytes!("../../assets/logo/live_regie_256.png")).unwrap_or_default(),
+            ))
             .with_inner_size([560.0, 134.0])
             .with_min_inner_size([420.0, 120.0]),
         ..Default::default()

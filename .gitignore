@@ -23,6 +23,9 @@ check_steps*.py
 __pycache__/
 *.pyc
 
+# Raccourci de lancement (chemins propres à chaque PC, recréé par tools/creer_raccourci.ps1)
+*.lnk
+
 # Journaux de live (contiennent les demandes d'aide : privés)
 journaux/
 

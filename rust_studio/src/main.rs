@@ -772,6 +772,27 @@ fn spawn_capture_window(edge: &str, url: &str, w: u32, h: u32, x: i32, y: i32) {
         .spawn();
 }
 
+/// Arrête un pont chat resté actif d'une session précédente (régie plantée ou tuée) : sans ça,
+/// deux ponts enverraient chaque commentaire en double. Ne tue le processus noté dans
+/// chat_bridge.pid que s'il s'agit bien d'un Python (un numéro de processus peut être réutilisé).
+fn kill_orphan_chat_bridge() {
+    let Ok(raw) = std::fs::read_to_string(app_path("chat_bridge.pid")) else { return };
+    let Ok(pid) = raw.trim().parse::<u32>() else { return };
+    let listing = Command::new("tasklist")
+        .creation_flags(CREATE_NO_WINDOW)
+        .args(["/FI", &format!("PID eq {}", pid), "/FO", "CSV", "/NH"])
+        .output();
+    if let Ok(out) = listing {
+        if String::from_utf8_lossy(&out.stdout).to_lowercase().contains("python") {
+            let _ = Command::new("taskkill")
+                .creation_flags(CREATE_NO_WINDOW)
+                .args(["/F", "/PID", &pid.to_string()])
+                .output();
+        }
+    }
+    let _ = std::fs::remove_file(app_path("chat_bridge.pid"));
+}
+
 /// Fenêtres de scène ouvertes (titre « STUDIO_LIVE_TIKTOK 9:16 / 16:9 ») avec leur état réduit ou non
 fn stage_windows() -> Vec<(windows::Win32::Foundation::HWND, bool, String)> {
     use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
@@ -1005,7 +1026,7 @@ impl Default for FullLiveState {
             pinned_avatar: String::new(),
             pinned_font_size: 18,
             pinned_align: "left".to_string(),
-            chat_handle: "Et si ...".to_string(),
+            chat_handle: String::new(),
             chat_status: " Prêt à connecter au Live TikTok".to_string(),
             chat_comments: Vec::new(),
             bot_config: BotConfig::default(),
@@ -1243,6 +1264,16 @@ impl TelecommandeApp {
         app.load_bot_config();
         app.load_jingles();
         app.load_preferences();
+        // Le pont chat est arrêté à la fermeture de la régie : on le relance au démarrage si un pseudo
+        // est connu (s'il n'y a pas encore de live, il attend et réessaie toutes les 30 s)
+        let has_handle = app
+            .state
+            .lock()
+            .map(|st| !st.chat_handle.trim().trim_start_matches('@').is_empty())
+            .unwrap_or(false);
+        if has_handle {
+            app.start_tiktok_chat_bridge();
+        }
         app
     }
 
@@ -1332,6 +1363,7 @@ impl TelecommandeApp {
         };
         // Un seul pont à la fois : sinon chaque commentaire arriverait en double
         self.stop_tiktok_chat_bridge();
+        kill_orphan_chat_bridge();
         let spawned = Command::new("python")
             .creation_flags(CREATE_NO_WINDOW)
             .current_dir(get_app_dir())
@@ -1339,7 +1371,10 @@ impl TelecommandeApp {
             .arg(&handle)
             .spawn();
         match spawned {
-            Ok(child) => self.chat_bridge = Some(child),
+            Ok(child) => {
+                let _ = std::fs::write(app_path("chat_bridge.pid"), child.id().to_string());
+                self.chat_bridge = Some(child);
+            }
             Err(e) => {
                 if let Ok(mut st) = self.state.lock() {
                     st.chat_status = format!("❌ Python introuvable ou erreur au lancement : {}", e);
@@ -2120,8 +2155,12 @@ impl TelecommandeApp {
             } else {
                 ("○ Chat", Color32::from_rgb(156, 163, 175))
             };
-            ui.label(RichText::new(chat_txt).strong().size(11.0).color(chat_col))
-                .on_hover_text(chat_status.trim());
+            let chat_badge = ui
+                .add(egui::Label::new(RichText::new(chat_txt).strong().size(11.0).color(chat_col)).sense(egui::Sense::click()))
+                .on_hover_text(if chat_on { chat_status.trim().to_string() } else { format!("{}\nClic : connecter le chat", chat_status.trim()) });
+            if chat_badge.clicked() && !chat_on {
+                self.start_tiktok_chat_bridge();
+            }
             if help_pending > 0 {
                 let badge = egui::Button::new(RichText::new(format!("🆘 {}", help_pending)).strong().size(11.0).color(Color32::WHITE))
                     .fill(Color32::from_rgb(185, 28, 28));

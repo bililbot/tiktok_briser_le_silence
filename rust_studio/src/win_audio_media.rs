@@ -17,7 +17,8 @@ use windows::{
         },
         System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED},
         UI::Input::KeyboardAndMouse::{
-            keybd_event, GetAsyncKeyState, KEYEVENTF_KEYUP, VK_F10, VK_F11, VK_F12, VK_F8, VK_F9,
+            keybd_event, GetAsyncKeyState, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_F1, VK_F10, VK_F11, VK_F12, VK_F2,
+            VK_F3, VK_F4, VK_F8, VK_F9,
             VK_MEDIA_NEXT_TRACK, VK_MEDIA_PLAY_PAUSE, VK_MEDIA_PREV_TRACK,
         },
     },
@@ -323,24 +324,24 @@ pub fn trigger_media_prev() {
     }
 }
 
-/// Retourne Some("shield" | "vss" | "politique" | "musique" | "toggle_video") si F8 / F9 / F10 / F11 / F12 est pressé
-pub fn check_global_hotkeys() -> Option<&'static str> {
-    unsafe {
-        if (GetAsyncKeyState(VK_F8.0 as i32) as u16 & 0x8000) != 0 {
-            return Some("shield");
-        }
-        if (GetAsyncKeyState(VK_F9.0 as i32) as u16 & 0x8000) != 0 {
-            return Some("vss");
-        }
-        if (GetAsyncKeyState(VK_F10.0 as i32) as u16 & 0x8000) != 0 {
-            return Some("politique");
-        }
-        if (GetAsyncKeyState(VK_F11.0 as i32) as u16 & 0x8000) != 0 {
-            return Some("musique");
-        }
-        if (GetAsyncKeyState(VK_F12.0 as i32) as u16 & 0x8000) != 0 {
-            return Some("toggle_video");
-        }
-    }
-    None
+/// Raccourcis globaux de la régie : touche → action
+pub const GLOBAL_HOTKEYS: [(VIRTUAL_KEY, &str); 9] = [
+    (VK_F1, "alerte"),
+    (VK_F2, "pin_question"),
+    (VK_F3, "emergency"),
+    (VK_F4, "annonce"),
+    (VK_F8, "shield"),
+    (VK_F9, "vss"),
+    (VK_F10, "politique"),
+    (VK_F11, "musique"),
+    (VK_F12, "toggle_video"),
+];
+
+/// Actions des raccourcis globaux actuellement enfoncés (fonctionne même régie réduite ou sans focus)
+pub fn global_hotkeys_down() -> Vec<&'static str> {
+    GLOBAL_HOTKEYS
+        .iter()
+        .filter(|(vk, _)| unsafe { (GetAsyncKeyState(vk.0 as i32) as u16 & 0x8000) != 0 })
+        .map(|(_, action)| *action)
+        .collect()
 }

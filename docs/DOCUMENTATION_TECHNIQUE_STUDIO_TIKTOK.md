@@ -134,6 +134,27 @@ Le lecteur YouTube des overlays (`stage_solution_b.html` et `stage_16_9.html`) :
 
 ---
 
+## ⌨️ Raccourcis Clavier Globaux
+
+Ils marchent même quand la régie est réduite ou n'a pas le focus.
+
+| Touche | Action |
+| :--- | :--- |
+| **F1** | Jingle « alerte » (sirène) |
+| **F2** | Épingle la dernière **question** du chat, ou retire l'épingle si une est affichée (inactif pendant le bouclier) |
+| **F3** | Affiche / masque les numéros d'urgence |
+| **F4** | Affiche / masque l'encart d'annonce libre (`custom_box_visible`) |
+| **F8** | Bouclier anti-raid |
+| **F9 / F10 / F11** | Branche VSS / Politique / Musique |
+| **F12** | Affiche / masque la vidéo |
+
+* **Implémentation** : la table `GLOBAL_HOTKEYS` (`win_audio_media.rs`) associe chaque touche à son action.
+* Un thread dédié lit l'état des touches (`GetAsyncKeyState`) **toutes les 30 ms**, hors de l'interface.
+* Une action est déclenchée **une seule fois par appui**, même si la touche reste enfoncée.
+* Les actions sont exécutées par `apply_hotkey()` directement sur l'état partagé.
+
+---
+
 ## 🛡️ Bouclier Anti-Raid
 
 * **Activation** : bouton rouge en haut de la régie, visible dans tous les onglets et en mode mini, ou **touche F8** (raccourci global, actif même quand la régie n'a pas le focus).

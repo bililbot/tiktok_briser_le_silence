@@ -41,7 +41,7 @@ Ce document répertorie les concepts et fonctionnalités validés à implémente
 
 ---
 
-### ⌨️ 5. Raccourcis Clavier Globaux (Stream Deck Virtuel)
+### ⌨️ 5. Raccourcis Clavier Globaux (Stream Deck Virtuel) — ✅ FAIT F1–F4 (+ F8–F12), Espace volontairement non fait (gênerait la frappe dans les autres applis)
 * **Objectif** : Tout contrôler sans toucher à la souris pendant le Live.
 * **Exemples d'assignation** :
   * `F1` : Jingle Alerte / Sirène

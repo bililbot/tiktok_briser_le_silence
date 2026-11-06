@@ -14,7 +14,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tiny_http::{Header, Response, Server};
 use win_audio_media::{
-    check_global_hotkeys, read_windows_media_session, trigger_media_next,
+    global_hotkeys_down, read_windows_media_session, trigger_media_next,
     trigger_media_play_pause, trigger_media_prev, MediaTrackInfo, SystemAudioMeter,
 };
 
@@ -503,6 +503,86 @@ fn default_tiktok_helper() -> String { "@second_compte".to_string() }
 
 fn default_true() -> bool { true }
 
+/// Bascule de branche (boutons de la régie et raccourcis F9–F11)
+fn apply_branch(st: &mut FullLiveState, branch_key: &str) {
+    st.branch = branch_key.to_string();
+    st.branch_timestamp = now_secs();
+    match branch_key {
+        "vss" => {
+            st.custom_topic = "PAROLE AUX SURVIVANT·E·S : BRISER LE TABOU DE L'INCESTE".to_string();
+            st.custom_sub = "📞 Aide 24h/24 : 119 (Enfance) • 3919 (Violences) • Chat bienveillant".to_string();
+            st.box_mode = "combine".to_string();
+            // Activer automatiquement le grand panneau des numéros d'urgence en mode Inceste & VSS !
+            st.emergency_visible = true;
+        }
+        "politique" => {
+            st.custom_topic = "FRONT MILITANT : ANTIFA • FÉMINISTE • ANTICAPITALISTE".to_string();
+            st.custom_sub = "✊ Justice sociale, égalité & riposte populaire • Débat en direct".to_string();
+            st.box_mode = "combine".to_string();
+            st.emergency_visible = false;
+        }
+        _ => {
+            st.custom_topic = "UNDERGROUND INSURRECTION : LA BANDE-SON DE NOS LUTTES".to_string();
+            st.custom_sub = "🔊 Punk • Techno • Hardcore • Hip-Hop • Metal • Grime • Dub".to_string();
+            st.box_mode = "musique".to_string();
+            st.emergency_visible = false;
+        }
+    }
+}
+
+/// Lance un jingle de la bibliothèque (synthé par défaut si l'id n'y est pas)
+fn fire_jingle(st: &mut FullLiveState, jingle_id: &str) {
+    let item = st.custom_jingles.iter().find(|j| j.id == jingle_id).cloned();
+    st.jingle_cmd_id += 1;
+    match item {
+        Some(item) => {
+            st.jingle_type = item.media_type;
+            st.jingle_key = item.id;
+            st.jingle_file_path = item.file_path;
+            st.jingle_volume = item.volume;
+        }
+        None => {
+            st.jingle_type = "synth".to_string();
+            st.jingle_key = jingle_id.to_string();
+            st.jingle_file_path = String::new();
+            st.jingle_volume = 80;
+        }
+    }
+}
+
+/// Exécute l'action d'un raccourci global (F1–F4, F8–F12)
+fn apply_hotkey(st: &mut FullLiveState, action: &str) {
+    match action {
+        "alerte" => fire_jingle(st, "alerte"),
+        "pin_question" => {
+            // F2 : épingle la dernière question du chat, ou retire l'épingle si une est affichée
+            if st.pinned_visible {
+                st.pinned_visible = false;
+            } else if !st.shield_active {
+                if let Some(q) = st.chat_comments.iter().rev().find(|c| c.is_question).cloned() {
+                    st.pinned_author = q.author;
+                    st.pinned_text = q.text;
+                    st.pinned_avatar = q.avatar;
+                    st.pinned_visible = true;
+                }
+            }
+        }
+        "emergency" => st.emergency_visible = !st.emergency_visible,
+        "annonce" => st.custom_box_visible = !st.custom_box_visible,
+        "shield" => {
+            st.shield_active = !st.shield_active;
+            st.branch_timestamp = now_secs();
+        }
+        "vss" | "politique" | "musique" => apply_branch(st, action),
+        "toggle_video" => {
+            st.video_active = !st.video_active;
+            st.branch_timestamp = now_secs();
+        }
+        _ => return,
+    }
+    save_state_json(st);
+}
+
 /// Ajoute un remerciement à la file (20 derniers gardés, les scènes ne rejouent que les nouveaux)
 fn push_thanks(st: &mut FullLiveState, kind: &str, author: String, gift: String, count: u32) {
     st.thanks_seq += 1;
@@ -737,7 +817,6 @@ enum TelecommandeTab {
 struct TelecommandeApp {
     state: Arc<Mutex<FullLiveState>>,
     audio_peak_atomic: Arc<std::sync::atomic::AtomicU32>,
-    last_hotkey_time: Instant,
     library: SavedVideoLibrary,
     show_emergency_config_window: bool,
     show_bot_config_window: bool,
@@ -759,7 +838,6 @@ impl TelecommandeApp {
         let mut app = Self {
             state,
             audio_peak_atomic,
-            last_hotkey_time: Instant::now(),
             library: SavedVideoLibrary {
                 folder_path: app_path("videos").to_string_lossy().to_string(),
                 files: Vec::new(),
@@ -943,29 +1021,7 @@ impl TelecommandeApp {
 
     fn set_branch(&mut self, branch_key: &str) {
         if let Ok(mut st) = self.state.lock() {
-            st.branch = branch_key.to_string();
-            st.branch_timestamp = now_secs();
-            match branch_key {
-                "vss" => {
-                    st.custom_topic = "PAROLE AUX SURVIVANT·E·S : BRISER LE TABOU DE L'INCESTE".to_string();
-                    st.custom_sub = "📞 Aide 24h/24 : 119 (Enfance) • 3919 (Violences) • Chat bienveillant".to_string();
-                    st.box_mode = "combine".to_string();
-                    // Activer automatiquement le grand panneau des numéros d'urgence en mode Inceste & VSS !
-                    st.emergency_visible = true;
-                }
-                "politique" => {
-                    st.custom_topic = "FRONT MILITANT : ANTIFA • FÉMINISTE • ANTICAPITALISTE".to_string();
-                    st.custom_sub = "✊ Justice sociale, égalité & riposte populaire • Débat en direct".to_string();
-                    st.box_mode = "combine".to_string();
-                    st.emergency_visible = false;
-                }
-                _ => {
-                    st.custom_topic = "UNDERGROUND INSURRECTION : LA BANDE-SON DE NOS LUTTES".to_string();
-                    st.custom_sub = "🔊 Punk • Techno • Hardcore • Hip-Hop • Metal • Grime • Dub".to_string();
-                    st.box_mode = "musique".to_string();
-                    st.emergency_visible = false;
-                }
-            }
+            apply_branch(&mut st, branch_key);
             save_state_json(&st);
         }
     }
@@ -4966,24 +5022,7 @@ impl eframe::App for TelecommandeApp {
         self.render_emergency_config_viewport(ctx);
         // Afficher la fenêtre dédiée de configuration du Bot TikTok si ouverte
         self.render_bot_config_viewport(ctx);
-
-        if self.last_hotkey_time.elapsed() > Duration::from_millis(400) {
-            if let Some(hk) = check_global_hotkeys() {
-                self.last_hotkey_time = Instant::now();
-                match hk {
-                    "vss" | "politique" | "musique" => self.set_branch(hk),
-                    "shield" => self.toggle_shield(),
-                    "toggle_video" => {
-                        if let Ok(mut st) = self.state.lock() {
-                            st.video_active = !st.video_active;
-                            st.branch_timestamp = now_secs();
-                            save_state_json(&st);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
+        // Les raccourcis globaux F1–F4 / F8–F12 sont gérés par un thread dédié (voir main)
 
 
         let panel_frame = egui::Frame::none()
@@ -5665,6 +5704,23 @@ fn main() -> eframe::Result<()> {
     });
 
     let audio_atomic_clone = Arc::clone(&audio_peak_atomic);
+    // Raccourcis globaux : scrutés toutes les 30 ms hors de l'interface (marchent régie réduite),
+    // une action par nouvel appui (front montant), jamais en rafale si la touche reste enfoncée
+    let state_hotkeys = Arc::clone(&state);
+    thread::spawn(move || {
+        let mut previously_down: Vec<&'static str> = Vec::new();
+        loop {
+            thread::sleep(Duration::from_millis(30));
+            let down = global_hotkeys_down();
+            for action in down.iter().filter(|a| !previously_down.contains(a)) {
+                if let Ok(mut st) = state_hotkeys.lock() {
+                    apply_hotkey(&mut st, action);
+                }
+            }
+            previously_down = down;
+        }
+    });
+
     // Chrono de débat : gong à 0, puis le widget disparaît 8 s après la fin
     let state_timer = Arc::clone(&state);
     thread::spawn(move || loop {

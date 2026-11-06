@@ -1,5 +1,5 @@
 # 📜 DOCUMENTATION TECHNIQUE — LIVE RÉGIE
-**Version :** 2.2.1 (`rust_studio/Cargo.toml`, voir [CHANGELOG](../CHANGELOG.md)) • **Système :** Windows (x64) • **Langages :** Rust (régie egui 0.29) & HTML5/CSS3/ES6 (scènes) & Python (pont chat)
+**Version :** 2.2.2 (`rust_studio/Cargo.toml`, voir [CHANGELOG](../CHANGELOG.md)) • **Système :** Windows (x64) • **Langages :** Rust (régie egui 0.29) & HTML5/CSS3/ES6 (scènes) & Python (pont chat)
 **Dernière mise à jour de la doc :** 06/11/2026 — alignée sur `rust_studio/src/main.rs`
 
 > Ce document décrit le **fonctionnement interne**. Pour l'utilisation au quotidien, voir le [guide utilisateur](GUIDE_UTILISATEUR.md).
@@ -268,6 +268,8 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
   * Le pont est lancé dans le dossier du studio, sans fenêtre.
   * La régie garde la main sur le processus : un nouveau clic sur « Connecter » **arrête l'ancien pont** avant d'en lancer un neuf, ce qui évite les commentaires en double.
   * La fermeture de la régie arrête aussi le pont.
+  * **Au démarrage**, la régie relance le pont si `chat_handle` n'est pas vide (connexion automatique). Le voyant « ○ Chat » de la barre du haut est cliquable et relance aussi le pont.
+  * **Pont orphelin** (régie plantée) : le PID du pont est écrit dans `chat_bridge.pid`. `kill_orphan_chat_bridge()` l'arrête avant tout nouveau lancement, uniquement si `tasklist` le désigne comme un processus Python (un PID peut être réutilisé).
 * **Reconnexion** : à chaque tentative, le pont crée un client TikTokLive neuf.
 
 | Situation | Comportement |

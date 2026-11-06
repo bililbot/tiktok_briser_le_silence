@@ -11,6 +11,15 @@ Chaque version est marquée par un tag Git (`v2.1.0`…), ce qui permet d'y reve
 
 ---
 
+## [2.2.2] — 2026-11-06
+
+### Corrections
+- **Le chat ne se reconnectait plus après un redémarrage de la régie.** La régie arrête le pont chat à sa fermeture, pour éviter les doublons, mais ne le relançait pas.
+  - Elle **se connecte maintenant automatiquement au démarrage** dès qu'un pseudo est renseigné. Sans live en cours, elle réessaie toutes les 30 s.
+- **Le voyant « ○ Chat »** de la barre du haut est cliquable : un clic lance la connexion.
+- **Pas de pont en double après un plantage :** le numéro de processus du pont est noté dans `chat_bridge.pid`. Au démarrage, un ancien pont encore actif est arrêté, après avoir vérifié que c'est bien un Python.
+- Le pseudo du chat est vide par défaut sur une nouvelle installation (il valait « Et si ... »).
+
 ## [2.2.1] — 2026-11-06
 
 ### Corrections

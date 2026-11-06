@@ -87,9 +87,9 @@ Bascule ensuite la régie sur le même format (bouton 9:16 / 16:9 en haut de la 
 
 ### La barre du haut (toujours visible)
 - **🛡️ BOUCLIER ANTI-RAID (F8)** : le bouton d'urgence en cas d'attaque dans le chat (voir §5).
-- **LIVE RÉGIE v2.2.1** : le nom et la version.
+- **LIVE RÉGIE v2.2.2** : le nom et la version.
 - **Les voyants** à côté :
-  - **● Chat** (vert) ou **○ Chat** (gris) indique si le chat est connecté ; le détail s'affiche au survol ;
+  - **● Chat** (vert) ou **○ Chat** (gris) indique si le chat est connecté ; le détail s'affiche au survol, et **un clic sur ○ Chat lance la connexion** ;
   - **🆘 N** (rouge) apparaît quand des demandes d'aide sont à traiter ; un clic ouvre le Bilan.
 - **Format** : bascule entre les scènes 9:16 et 16:9.
 - **Mode Mini** : une petite fenêtre avec l'essentiel, à garder dans un coin de l'écran.
@@ -112,7 +112,7 @@ Bascule ensuite la régie sur le même format (bouton 9:16 / 16:9 en haut de la 
 ## 4. Préparer un live (check-list)
 
 1. Lance **Live Régie**, puis **TikTok LIVE Studio**, et vérifie que les scènes s'affichent.
-2. Onglet **👥 Public** : tape ton pseudo, puis clique **⚡ Connecter au Live**.
+2. Le chat **se connecte tout seul** au lancement de la régie dès que ton pseudo est renseigné (onglet **👥 Public**, champ « Pseudo TikTok »). Sinon, clique **⚡ Connecter au Live** ou le voyant **○ Chat** en haut.
    - Tu peux le faire **avant** de démarrer le live : la régie se connectera toute seule dès que tu seras en direct.
 3. Choisis la **branche** du jour dans la rangée du haut.
 4. Si le sujet est sensible, active **[TW]** (avertissement) et vérifie les **numéros d'urgence** (**[!] Urg.**).

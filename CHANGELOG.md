@@ -11,6 +11,25 @@ Chaque version est marquée par un tag Git (`v2.1.0`…), ce qui permet d'y reve
 
 ---
 
+## [2.2.0] — 2026-11-06
+
+### Interface réorganisée
+- **5 onglets rangés selon le moment d'utilisation**, au lieu de 7 onglets thématiques :
+  - **🔴 Direct** : chrono de débat, branche active, textes de la scène, sons et jingles ;
+  - **🖼️ Contenus** : vidéo (YouTube ou fichiers, préréglages YouTube en volet), annonce, revue de presse, musique détectée ;
+  - **👥 Public** : chat et questions épinglées, jukebox, sondages, jauge de likes ;
+  - **📝 Bilan** : demandes d'aide, journal du live ;
+  - **⚙️ Réglages** : volets repliables Branches, Mise en page des scènes, Sécurité (numéros d'urgence, avertissement), Remerciements, Comptes TikTok et auto-tappeur.
+- **Voyants dans la barre du haut** :
+  - **● / ○ Chat** indique l'état de la connexion ;
+  - **🆘 N** compte les demandes d'aide à traiter ; un clic ouvre le Bilan.
+- **Plus de doublons** : l'encart d'annonce, présent à la fois dans Régie et dans Bannières, n'apparaît plus qu'une fois. Le lecteur vidéo et l'onglet YouTube sont réunis dans Contenus.
+- **Plus de numéros de section** (1, 4, [4], 2, 3, 5…), et des titres qui disent ce que fait chaque bloc.
+
+### Corrections
+- Le statut du chat chevauchait le bouton « Configurer le Bot ». Il s'affichait aussi en **vert** quand il était « Déconnecté », parce que le mot contient « connect ».
+- Les boutons d'onglets, de branches et de bascules débordaient à droite de la fenêtre (l'espacement entre boutons n'était pas compté).
+
 ## [2.1.3] — 2026-11-06
 
 ### Corrections

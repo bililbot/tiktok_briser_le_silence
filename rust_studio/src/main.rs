@@ -1158,15 +1158,13 @@ fn save_bot_config_file(cfg: &BotConfig) {
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Serialize, Deserialize)]
+/// Onglets rangés selon le moment d'utilisation ; toute la configuration est dans Réglages
 enum TelecommandeTab {
-    Regie,
-    Youtube,
-    Articles,
-    Sondages,
-    Soundboard,
-    Preferences,
-    Chat,
-    Bannieres,
+    Direct,   // pendant le live : chrono, textes de la scène, sons
+    Contenus, // ce qu'on montre : vidéo, annonce, presse, musique
+    Public,   // chat, questions, sondages, jauge, jukebox
+    Bilan,    // demandes d'aide, journal du live
+    Reglages, // branches, scènes, sécurité, remerciements, comptes, avancé
 }
 
 struct TelecommandeApp {
@@ -1210,7 +1208,7 @@ impl TelecommandeApp {
             new_trigger_action: "emergency".to_string(),
             new_trigger_param: String::new(),
             chat_only_questions: false,
-            active_tab: TelecommandeTab::Regie,
+            active_tab: TelecommandeTab::Direct,
             mini_mode: false,
             article_input_url: String::new(),
             article_scrape_status: Arc::new(Mutex::new(String::new())),
@@ -2126,6 +2124,28 @@ impl TelecommandeApp {
                     .color(Color32::WHITE),
             );
 
+            // Voyants : état du chat (détail au survol) et demandes d'aide à traiter (clic → Bilan)
+            let (chat_status, help_pending) = self
+                .state
+                .lock()
+                .map(|st| (st.chat_status.clone(), st.help_alerts.iter().filter(|a| !a.handled).count()))
+                .unwrap_or_default();
+            let chat_on = chat_status.contains('🟢');
+            let (chat_txt, chat_col) = if chat_on {
+                ("● Chat", Color32::from_rgb(34, 197, 94))
+            } else {
+                ("○ Chat", Color32::from_rgb(156, 163, 175))
+            };
+            ui.label(RichText::new(chat_txt).strong().size(11.0).color(chat_col))
+                .on_hover_text(chat_status.trim());
+            if help_pending > 0 {
+                let badge = egui::Button::new(RichText::new(format!("🆘 {}", help_pending)).strong().size(11.0).color(Color32::WHITE))
+                    .fill(Color32::from_rgb(185, 28, 28));
+                if ui.add(badge).on_hover_text("Demandes d'aide à traiter : ouvrir le Bilan").clicked() {
+                    self.active_tab = TelecommandeTab::Bilan;
+                }
+            }
+
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Bouton Mode Mini
                 if ui
@@ -2192,7 +2212,7 @@ impl TelecommandeApp {
         let mut clicked_branch: Option<String> = None;
         for (row_index, row) in branches.chunks(4).enumerate() {
             ui.horizontal(|ui| {
-                let btn_w = (ui.available_width() - 15.0) / 4.0;
+                let btn_w = ((ui.available_width() - ui.spacing().item_spacing.x * 3.0) / 4.0).floor();
                 for (i, b) in row.iter().enumerate() {
                     let index = row_index * 4 + i;
                     let active = b.id == current_branch;
@@ -2220,7 +2240,7 @@ impl TelecommandeApp {
         // Ligne 3: Toggles d'Actions Rapides (Urgences, TW, Vidéo, Musique Box)
         ui.horizontal(|ui| {
             let total_w = ui.available_width();
-            let btn_w = (total_w - 12.0) / 4.0;
+            let btn_w = ((total_w - ui.spacing().item_spacing.x * 3.0) / 4.0).floor();
 
             // 🚨 Urgences
             let (emerg_txt, emerg_bg) = if emerg_vis {
@@ -2318,39 +2338,24 @@ impl TelecommandeApp {
     }
 
     fn render_tab_selector(&mut self, ui: &mut egui::Ui) {
-        ui.vertical(|ui| {
-            let total_w = ui.available_width();
-
-            // « Bannières » (annonce libre, bandeau TW, numéros d'urgence) n'était plus accessible : rétabli
-            let rows: [&[(TelecommandeTab, &str, Color32)]; 2] = [
-                &[
-                    (TelecommandeTab::Regie, "[ Régie ]", Color32::from_rgb(147, 51, 234)),
-                    (TelecommandeTab::Youtube, "[ YouTube ]", Color32::from_rgb(239, 68, 68)),
-                    (TelecommandeTab::Articles, "[ Presse ]", Color32::from_rgb(234, 88, 12)),
-                    (TelecommandeTab::Bannieres, "🪧 Bannières", Color32::from_rgb(219, 39, 119)),
-                ],
-                &[
-                    (TelecommandeTab::Sondages, "🗳️ Sondages & Chat", Color32::from_rgb(59, 130, 246)),
-                    (TelecommandeTab::Soundboard, "🎵 Sons", Color32::from_rgb(16, 185, 129)),
-                    (TelecommandeTab::Preferences, "[ Préférences ]", Color32::from_rgb(107, 114, 128)),
-                ],
-            ];
-
-            for (row_index, row) in rows.iter().enumerate() {
-                if row_index > 0 {
-                    ui.add_space(2.0);
+        // 4 onglets d'usage + Réglages à part (toute la configuration au même endroit)
+        let tabs = [
+            (TelecommandeTab::Direct, "🔴 Direct", Color32::from_rgb(220, 38, 38)),
+            (TelecommandeTab::Contenus, "🖼️ Contenus", Color32::from_rgb(234, 88, 12)),
+            (TelecommandeTab::Public, "👥 Public", Color32::from_rgb(59, 130, 246)),
+            (TelecommandeTab::Bilan, "📝 Bilan", Color32::from_rgb(16, 185, 129)),
+            (TelecommandeTab::Reglages, "⚙️ Réglages", Color32::from_rgb(107, 114, 128)),
+        ];
+        let gap = ui.spacing().item_spacing.x;
+        let tab_w = ((ui.available_width() - gap * (tabs.len() as f32 - 1.0)) / tabs.len() as f32).floor();
+        ui.horizontal(|ui| {
+            for (tab, label, active_col) in tabs {
+                let is_sel = self.active_tab == tab;
+                let bg = if is_sel { active_col } else { Color32::from_rgb(28, 30, 38) };
+                let txt_col = if is_sel { Color32::WHITE } else { Color32::from_rgb(156, 163, 175) };
+                if ui.add_sized([tab_w, 30.0], egui::Button::new(RichText::new(label).strong().size(12.0).color(txt_col)).fill(bg)).clicked() {
+                    self.active_tab = tab;
                 }
-                let tab_w = (total_w - 5.0 * row.len() as f32) / row.len() as f32;
-                ui.horizontal(|ui| {
-                    for (tab, label, active_col) in row.iter() {
-                        let is_sel = self.active_tab == *tab;
-                        let bg = if is_sel { *active_col } else { Color32::from_rgb(28, 30, 38) };
-                        let txt_col = if is_sel { Color32::WHITE } else { Color32::from_rgb(156, 163, 175) };
-                        if ui.add_sized([tab_w, 28.0], egui::Button::new(RichText::new(*label).strong().size(12.0).color(txt_col)).fill(bg)).clicked() {
-                            self.active_tab = *tab;
-                        }
-                    }
-                });
             }
         });
     }
@@ -2771,15 +2776,8 @@ impl TelecommandeApp {
             });
     }
 
-    fn render_tab_regie(&mut self, ui: &mut egui::Ui) {
-                self.render_debate_timer(ui);
-                ui.add_space(8.0);
-                self.render_thanks_controls(ui);
-                ui.add_space(8.0);
-                self.render_help_alerts(ui);
-                ui.add_space(8.0);
-                self.render_journal_controls(ui);
-                ui.add_space(8.0);
+    /// Branche active : textes par défaut de la branche
+    fn section_branch_active(&mut self, ui: &mut egui::Ui) {
 
                 // =========================================================
                 // 1. SÉLECTION RAPIDE DE BRANCHE (VSS / POLITIQUE / MUSIQUE)
@@ -2799,11 +2797,11 @@ impl TelecommandeApp {
                         match active {
                             Some(b) => {
                                 ui.horizontal(|ui| {
-                                    ui.label(RichText::new("🎛️ 1. BRANCHE ACTIVE :").strong().color(Color32::from_rgb(96, 165, 250)));
+                                    ui.label(RichText::new("🎛️ BRANCHE ACTIVE :").strong().color(Color32::from_rgb(96, 165, 250)));
                                     ui.label(RichText::new(&b.label).strong().size(14.0).color(hex_color(&b.color)));
                                 });
                                 ui.label(
-                                    RichText::new("Changer de branche : rangée du haut ou F9 / F10 / F11. Renommer, recolorer, ajouter : onglet Préférences.")
+                                    RichText::new("Changer de branche : rangée du haut ou F9 / F10 / F11. Renommer, recolorer, ajouter : ⚙️ Réglages → Branches du live.")
                                         .size(10.0)
                                         .color(Color32::GRAY),
                                 );
@@ -2830,12 +2828,15 @@ impl TelecommandeApp {
                                 });
                             }
                             None => {
-                                ui.label(RichText::new("🎛️ 1. BRANCHE ACTIVE : aucune (choisissez-en une dans la rangée du haut)").strong().color(Color32::from_rgb(96, 165, 250)));
+                                ui.label(RichText::new("🎛️ BRANCHE ACTIVE : aucune (choisis-en une dans la rangée du haut)").strong().color(Color32::from_rgb(96, 165, 250)));
                             }
                         }
                     });
 
-                ui.add_space(8.0);
+    }
+
+    /// Textes de la scène : sujet, sous-titre, mode du bandeau
+    fn section_scene_texts(&mut self, ui: &mut egui::Ui) {
                 // =========================================================
                 // 4. TEXTE DU SUJET & MODE DU BANDEAU MUSIQUE
                 // =========================================================
@@ -2851,7 +2852,7 @@ impl TelecommandeApp {
                         };
 
                         ui.label(
-                            RichText::new("✍️ 4. CONTENU DU LECTEUR & BANDEAU")
+                            RichText::new("✍️ TEXTES DE LA SCÈNE & BANDEAU")
                                 .strong()
                                 .color(Color32::WHITE),
                         );
@@ -2907,202 +2908,10 @@ impl TelecommandeApp {
                         });
                     });
 
-                ui.add_space(8.0);
-                // =========================================================
-                // 📢 ENCART ANNONCE DU LIVE & TEXTE LIBRE
-                // =========================================================
-                egui::Frame::group(ui.style())
-                    .fill(Color32::from_rgb(22, 25, 36))
-                    .stroke(Stroke::new(1.2_f32, Color32::from_rgb(168, 85, 247)))
-                    .rounding(Rounding::same(8.0))
-                    .inner_margin(egui::Margin::same(10.0))
-                    .show(ui, |ui| {
-                        let (
-                            mut box_vis,
-                            mut has_title,
-                            mut title,
-                            mut title_font_sz,
-                            mut text,
-                            mut font_sz,
-                            mut align,
-                            mut bg_opac,
-                            mut border_w,
-                            mut border_rad,
-                            mut padding,
-                        ) = {
-                            let st = self.state.lock().unwrap();
-                            (
-                                st.custom_box_visible,
-                                st.custom_box_has_title,
-                                st.custom_box_title.clone(),
-                                st.custom_box_title_font_size,
-                                st.custom_box_text.clone(),
-                                st.custom_box_font_size,
-                                st.custom_box_align.clone(),
-                                st.custom_box_bg_opacity,
-                                st.custom_box_border_width,
-                                st.custom_box_border_radius,
-                                st.custom_box_padding,
-                            )
-                        };
+    }
 
-                        let mut changed = false;
-
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("[4] ANNONCE DU LIVE (ENCART TEXTE LIBRE)").strong().color(Color32::from_rgb(216, 180, 254)));
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                let (btn_txt, btn_col) = if box_vis {
-                                    ("⏹️ MASQUER L'ANNONCE", Color32::from_rgb(220, 38, 38))
-                                } else {
-                                    ("▶️ AFFICHER SUR LE LIVE", Color32::from_rgb(34, 197, 94))
-                                };
-                                if ui.add(egui::Button::new(RichText::new(btn_txt).strong().color(Color32::WHITE)).fill(btn_col)).clicked() {
-                                    box_vis = !box_vis;
-                                    changed = true;
-                                }
-                            });
-                        });
-
-                        ui.add_space(6.0);
-
-                        // Option Titre
-                        ui.horizontal(|ui| {
-                            if ui.checkbox(&mut has_title, RichText::new("🏷️ Activer un Titre").strong().color(Color32::from_rgb(147, 197, 253))).changed() {
-                                changed = true;
-                            }
-                            if has_title {
-                                ui.label(RichText::new("Titre :").color(Color32::WHITE));
-                                if ui.add(egui::TextEdit::singleline(&mut title).desired_width(180.0)).changed() {
-                                    changed = true;
-                                }
-                                ui.label(RichText::new("Taille titre :").size(11.0).color(Color32::from_rgb(203, 213, 225)));
-                                if ui.add(egui::Slider::new(&mut title_font_sz, 12..=64).suffix(" px")).changed() {
-                                    changed = true;
-                                }
-                            }
-                        });
-
-                        ui.add_space(4.0);
-                        ui.label(RichText::new("Message / Annonce du Live :").strong().color(Color32::WHITE));
-                        if ui.add(egui::TextEdit::multiline(&mut text).desired_rows(3).desired_width(ui.available_width())).changed() {
-                            changed = true;
-                        }
-
-                        ui.add_space(6.0);
-
-                        // Typographie & Alignement
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Police :").size(11.5).color(Color32::from_rgb(203, 213, 225)));
-                            if ui.add(egui::Slider::new(&mut font_sz, 10..=80).suffix(" px")).changed() {
-                                changed = true;
-                            }
-                            ui.add_space(8.0);
-                            ui.label(RichText::new("Alignement :").size(11.5).color(Color32::from_rgb(203, 213, 225)));
-                            if ui.selectable_value(&mut align, "left".to_string(), "⬅️ Gauche").clicked()
-                                || ui.selectable_value(&mut align, "center".to_string(), "↔️ Centré").clicked()
-                                || ui.selectable_value(&mut align, "right".to_string(), "➡️ Droite").clicked()
-                            {
-                                changed = true;
-                            }
-                        });
-
-                        ui.add_space(4.0);
-
-                        // Options de Mise en page avancée
-                        ui.collapsing("📐 Mise en page avancée (Marges, Bordures, Opacité)", |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new("Marge interne :").size(11.0));
-                                if ui.add(egui::Slider::new(&mut padding, 4..=48).suffix(" px")).changed() {
-                                    changed = true;
-                                }
-                                ui.add_space(6.0);
-                                ui.label(RichText::new("Opacité fond :").size(11.0));
-                                if ui.add(egui::Slider::new(&mut bg_opac, 0..=100).suffix("%")).changed() {
-                                    changed = true;
-                                }
-                            });
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new("Bordure :").size(11.0));
-                                if ui.add(egui::Slider::new(&mut border_w, 0..=12).suffix(" px")).changed() {
-                                    changed = true;
-                                }
-                                ui.add_space(6.0);
-                                ui.label(RichText::new("Arrondi coins :").size(11.0));
-                                if ui.add(egui::Slider::new(&mut border_rad, 0..=32).suffix(" px")).changed() {
-                                    changed = true;
-                                }
-                            });
-                        });
-                        ui.add_space(4.0);
-                        // Styles rapides prédéfinis
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Styles :").size(11.0).color(Color32::GRAY));
-                            if ui.small_button("⚡ Néon Violet").clicked() {
-                                if let Ok(mut st) = self.state.lock() {
-                                    st.custom_box_bg_color = "#15102a".to_string();
-                                    st.custom_box_bg_opacity = 92;
-                                    st.custom_box_border_color = "#a855f7".to_string();
-                                    st.custom_box_border_width = 2;
-                                    st.custom_box_border_radius = 12;
-                                    st.custom_box_text_color = "#ffffff".to_string();
-                                    save_state_json(&st);
-                                }
-                            }
-                            if ui.small_button("🚨 Alerte Rouge").clicked() {
-                                if let Ok(mut st) = self.state.lock() {
-                                    st.custom_box_bg_color = "#2a0f12".to_string();
-                                    st.custom_box_bg_opacity = 95;
-                                    st.custom_box_border_color = "#ef4444".to_string();
-                                    st.custom_box_border_width = 3;
-                                    st.custom_box_border_radius = 8;
-                                    st.custom_box_text_color = "#fee2e2".to_string();
-                                    save_state_json(&st);
-                                }
-                            }
-                            if ui.small_button("📜 Dark Épuré").clicked() {
-                                if let Ok(mut st) = self.state.lock() {
-                                    st.custom_box_bg_color = "#0b0d14".to_string();
-                                    st.custom_box_bg_opacity = 96;
-                                    st.custom_box_border_color = "#334155".to_string();
-                                    st.custom_box_border_width = 1;
-                                    st.custom_box_border_radius = 6;
-                                    st.custom_box_text_color = "#f8fafc".to_string();
-                                    save_state_json(&st);
-                                }
-                            }
-                            if ui.small_button("🪟 Flou Furtif").clicked() {
-                                if let Ok(mut st) = self.state.lock() {
-                                    st.custom_box_bg_color = "#000000".to_string();
-                                    st.custom_box_bg_opacity = 50;
-                                    st.custom_box_border_color = "#64748b".to_string();
-                                    st.custom_box_border_width = 1;
-                                    st.custom_box_border_radius = 10;
-                                    st.custom_box_text_color = "#ffffff".to_string();
-                                    save_state_json(&st);
-                                }
-                            }
-                        });
-
-                        if changed {
-                            if let Ok(mut st) = self.state.lock() {
-                                st.custom_box_visible = box_vis;
-                                st.custom_box_has_title = has_title;
-                                st.custom_box_title = title;
-                                st.custom_box_title_font_size = title_font_sz;
-                                st.custom_box_text = text;
-                                st.custom_box_font_size = font_sz;
-                                st.custom_box_align = align;
-                                st.custom_box_bg_opacity = bg_opac;
-                                st.custom_box_border_width = border_w;
-                                st.custom_box_border_radius = border_rad;
-                                st.custom_box_padding = padding;
-                                save_state_json(&st);
-                            }
-                        }
-                    });
-
-
-                ui.add_space(8.0);
+    /// Vidéo du live : YouTube ou fichiers, affichage, taille, lecture
+    fn section_video(&mut self, ui: &mut egui::Ui) {
 
         ui.add_space(6.0);
                 // =========================================================
@@ -3140,7 +2949,7 @@ impl TelecommandeApp {
 
                         ui.horizontal(|ui| {
                             ui.label(
-                                RichText::new("🎬 2. LECTEUR VIDÉO DU LIVE (YOUTUBE & FICHIERS)")
+                                RichText::new("🎬 VIDÉO DU LIVE (YOUTUBE & FICHIERS)")
                                     .strong()
                                     .color(Color32::from_rgb(216, 180, 254)),
                             );
@@ -3442,7 +3251,10 @@ impl TelecommandeApp {
                         });
                     });
 
-                ui.add_space(8.0);
+    }
+
+    /// Musique détectée sur le PC (Spotify, YouTube, VLC…)
+    fn section_music_detected(&mut self, ui: &mut egui::Ui) {
 
         ui.add_space(6.0);
                 // =========================================================
@@ -3461,7 +3273,7 @@ impl TelecommandeApp {
                     .inner_margin(egui::Margin::same(10.0))
                     .show(ui, |ui| {
                         ui.label(
-                            RichText::new("🔊 3. SON & MUSIQUE DÉTECTÉS SUR LE PC (YouTube, Spotify, VLC...)")
+                            RichText::new("🔊 MUSIQUE DÉTECTÉE SUR LE PC (YouTube, Spotify, VLC…)")
                                 .strong()
                                 .color(Color32::from_rgb(74, 222, 128)),
                         );
@@ -3503,9 +3315,323 @@ impl TelecommandeApp {
                         });
                     });
 
-                ui.add_space(8.0);
+    }
+
+    /// Encart d'annonce (texte libre) sur la scène
+    fn section_annonce(&mut self, ui: &mut egui::Ui) {
+                // =========================================================
+                // 7. ENCART TEXTE LIBRE SUR LE LIVE (BANNIÈRE SUR-MESURE)
+                // =========================================================
+                egui::Frame::none()
+                    .fill(Color32::from_rgb(20, 24, 34))
+                    .stroke(Stroke::new(1.2_f32, Color32::from_rgb(168, 85, 247)))
+                    .rounding(Rounding::same(8.0))
+                    .inner_margin(egui::Margin::same(12.0))
+                    .show(ui, |ui| {
+                        let (mut box_vis, mut has_title, mut title, mut title_font_sz, mut text, mut font_sz, mut align, mut bg_opac, mut border_w, mut border_rad, mut padding) = {
+                            let st = self.state.lock().unwrap();
+                            (
+                                st.custom_box_visible,
+                                st.custom_box_has_title,
+                                st.custom_box_title.clone(),
+                                st.custom_box_title_font_size,
+                                st.custom_box_text.clone(),
+                                st.custom_box_font_size,
+                                st.custom_box_align.clone(),
+                                st.custom_box_bg_opacity,
+                                st.custom_box_border_width,
+                                st.custom_box_border_radius,
+                                st.custom_box_padding,
+                            )
+                        };
+
+                        let mut changed = false;
+
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new("📢 ANNONCE (ENCART DE TEXTE LIBRE)")
+                                    .strong()
+                                    .size(13.5)
+                                    .color(Color32::from_rgb(216, 180, 254)),
+                            );
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                let btn_col = if box_vis {
+                                    Color32::from_rgb(22, 163, 74)
+                                } else {
+                                    Color32::from_rgb(75, 85, 99)
+                                };
+                                let btn_txt = if box_vis {
+                                    "👁️ ENCART AFFICHÉ (Cliquer pour Masquer)"
+                                } else {
+                                    "👁️ AFFICHER L'ENCART SUR LE LIVE"
+                                };
+                                if ui.add(egui::Button::new(RichText::new(btn_txt).strong().color(Color32::WHITE)).fill(btn_col)).clicked() {
+                                    box_vis = !box_vis;
+                                    changed = true;
+                                }
+                            });
+                        });
+
+                        ui.add_space(6.0);
+
+                        // Option Titre
+                        ui.horizontal(|ui| {
+                            if ui.checkbox(&mut has_title, RichText::new("🏷️ Activer un Titre").strong().color(Color32::from_rgb(147, 197, 253))).changed() {
+                                changed = true;
+                            }
+                            if has_title {
+                                ui.label(RichText::new("Titre :").color(Color32::WHITE));
+                                if ui.add(egui::TextEdit::singleline(&mut title).desired_width(180.0)).changed() {
+                                    changed = true;
+                                }
+                                ui.label(RichText::new("Taille titre :").size(11.0).color(Color32::from_rgb(203, 213, 225)));
+                                if ui.add(egui::Slider::new(&mut title_font_sz, 12..=64).suffix(" px")).changed() {
+                                    changed = true;
+                                }
+                            }
+                        });
+
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("Texte / Message :").strong().color(Color32::WHITE));
+                        if ui.add(egui::TextEdit::multiline(&mut text).desired_rows(3).desired_width(ui.available_width())).changed() {
+                            changed = true;
+                        }
+
+                        ui.add_space(6.0);
+
+                        // Typographie & Alignement
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Taille Police :").size(12.0).color(Color32::from_rgb(203, 213, 225)));
+                            if ui.add(egui::Slider::new(&mut font_sz, 10..=80).suffix(" px")).changed() {
+                                changed = true;
+                            }
+                            ui.add_space(10.0);
+                            ui.label(RichText::new("Alignement :").size(12.0).color(Color32::from_rgb(203, 213, 225)));
+                            if ui.selectable_value(&mut align, "left".to_string(), "⬅️ Gauche").clicked()
+                                || ui.selectable_value(&mut align, "center".to_string(), "↔️ Centré").clicked()
+                                || ui.selectable_value(&mut align, "right".to_string(), "➡️ Droite").clicked()
+                            {
+                                changed = true;
+                            }
+                        });
+
+                        ui.add_space(4.0);
+
+                        // Options du Cadre (Fond, Opacité, Bordure, Arrondis, Marge)
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Opacité :").size(12.0).color(Color32::from_rgb(203, 213, 225)));
+                            if ui.add(egui::Slider::new(&mut bg_opac, 0..=100).suffix("%")).changed() {
+                                changed = true;
+                            }
+                            ui.add_space(8.0);
+                            ui.label(RichText::new("Bordure :").size(12.0).color(Color32::from_rgb(203, 213, 225)));
+                            if ui.add(egui::Slider::new(&mut border_w, 0..=8).suffix(" px")).changed() {
+                                changed = true;
+                            }
+                            ui.add_space(8.0);
+                            ui.label(RichText::new("Coins :").size(12.0).color(Color32::from_rgb(203, 213, 225)));
+                            if ui.add(egui::Slider::new(&mut border_rad, 0..=25).suffix(" px")).changed() {
+                                changed = true;
+                            }
+                            ui.add_space(8.0);
+                            ui.label(RichText::new("Marge :").size(12.0).color(Color32::from_rgb(203, 213, 225)));
+                            if ui.add(egui::Slider::new(&mut padding, 4..=30).suffix(" px")).changed() {
+                                changed = true;
+                            }
+                        });
+
+                        // Styles rapides prédéfinis
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Styles rapides :").size(11.0).color(Color32::GRAY));
+                            if ui.small_button("⚡ Néon Violet").clicked() {
+                                if let Ok(mut st) = self.state.lock() {
+                                    st.custom_box_bg_color = "#15102a".to_string();
+                                    st.custom_box_bg_opacity = 92;
+                                    st.custom_box_border_color = "#a855f7".to_string();
+                                    st.custom_box_border_width = 2;
+                                    st.custom_box_border_radius = 12;
+                                    st.custom_box_text_color = "#ffffff".to_string();
+                                    save_state_json(&st);
+                                }
+                            }
+                            if ui.small_button("🚨 Alerte Rouge").clicked() {
+                                if let Ok(mut st) = self.state.lock() {
+                                    st.custom_box_bg_color = "#2a0f12".to_string();
+                                    st.custom_box_bg_opacity = 95;
+                                    st.custom_box_border_color = "#ef4444".to_string();
+                                    st.custom_box_border_width = 3;
+                                    st.custom_box_border_radius = 8;
+                                    st.custom_box_text_color = "#fee2e2".to_string();
+                                    save_state_json(&st);
+                                }
+                            }
+                            if ui.small_button("📜 Dark Épuré").clicked() {
+                                if let Ok(mut st) = self.state.lock() {
+                                    st.custom_box_bg_color = "#0b0d14".to_string();
+                                    st.custom_box_bg_opacity = 96;
+                                    st.custom_box_border_color = "#334155".to_string();
+                                    st.custom_box_border_width = 1;
+                                    st.custom_box_border_radius = 6;
+                                    st.custom_box_text_color = "#f8fafc".to_string();
+                                    save_state_json(&st);
+                                }
+                            }
+                            if ui.small_button("🪟 Flou Furtif").clicked() {
+                                if let Ok(mut st) = self.state.lock() {
+                                    st.custom_box_bg_color = "#000000".to_string();
+                                    st.custom_box_bg_opacity = 50;
+                                    st.custom_box_border_color = "#64748b".to_string();
+                                    st.custom_box_border_width = 1;
+                                    st.custom_box_border_radius = 10;
+                                    st.custom_box_text_color = "#ffffff".to_string();
+                                    save_state_json(&st);
+                                }
+                            }
+                        });
+
+                        if changed {
+                            if let Ok(mut st) = self.state.lock() {
+                                st.custom_box_visible = box_vis;
+                                st.custom_box_has_title = has_title;
+                                st.custom_box_title = title;
+                                st.custom_box_title_font_size = title_font_sz;
+                                st.custom_box_text = text;
+                                st.custom_box_font_size = font_sz;
+                                st.custom_box_align = align;
+                                st.custom_box_bg_opacity = bg_opac;
+                                st.custom_box_border_width = border_w;
+                                st.custom_box_border_radius = border_rad;
+                                st.custom_box_padding = padding;
+                                save_state_json(&st);
+                            }
+                        }
+                    });
 
     }
+
+    /// Bandeau d'avertissement de sujet sensible
+    fn section_trigger_warning(&mut self, ui: &mut egui::Ui) {
+
+        ui.add_space(6.0);
+                // =========================================================
+                // 5. BANDEAU TRIGGER WARNING (SUJET SENSIBLE)
+                // =========================================================
+                egui::Frame::group(ui.style())
+                    .fill(Color32::from_rgb(28, 20, 24))
+                    .stroke(Stroke::new(1.0_f32, Color32::from_rgb(239, 68, 68)))
+                    .rounding(Rounding::same(8.0))
+                    .inner_margin(egui::Margin::same(10.0))
+                    .show(ui, |ui| {
+                        let (mut tw_vis, mut tw_txt) = {
+                            let st = self.state.lock().unwrap();
+                            (st.trigger_warning_visible, st.trigger_warning_text.clone())
+                        };
+
+                        ui.horizontal(|ui| {
+                            if ui
+                                .checkbox(
+                                    &mut tw_vis,
+                                    RichText::new("⚠️ Avertissement Sensible (Trigger Warning) sur le Live")
+                                        .strong()
+                                        .color(Color32::from_rgb(252, 165, 165)),
+                                )
+                                .changed()
+                            {
+                                if let Ok(mut st) = self.state.lock() {
+                                    st.trigger_warning_visible = tw_vis;
+                                    save_state_json(&st);
+                                }
+                            }
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.label("Texte TW :");
+                            if ui.text_edit_singleline(&mut tw_txt).changed() {
+                                if let Ok(mut st) = self.state.lock() {
+                                    st.trigger_warning_text = tw_txt;
+                                    save_state_json(&st);
+                                }
+                            }
+                        });
+                    });
+
+    }
+
+    /// Numéros d'urgence : affichage, position, configuration
+    fn section_emergency_display(&mut self, ui: &mut egui::Ui) {
+        let mut emerg_vis = if let Ok(st) = self.state.lock() { st.emergency_visible } else { false };
+
+        ui.add_space(6.0);
+
+        egui::Frame::group(ui.style())
+            .fill(Color32::from_rgb(24, 26, 34))
+            .stroke(Stroke::new(1.0_f32, Color32::from_rgb(147, 51, 234)))
+            .rounding(Rounding::same(8.0))
+            .inner_margin(egui::Margin::same(10.0))
+            .show(ui, |ui| {
+                ui.label(
+                    RichText::new("📞 NUMÉROS D'URGENCE VSS / INCESTE (Affichage & Style)")
+                        .strong()
+                        .color(Color32::from_rgb(216, 180, 254)),
+                );
+                ui.add_space(4.0);
+                            // Barre de contrôle rapide du Panneau Numéros d'Urgence
+                            ui.horizontal(|ui| {
+                                if ui
+                                    .checkbox(
+                                        &mut emerg_vis,
+                                        RichText::new("🚨 Afficher le Grand Panneau des Numéros d'Urgence sur le Live")
+                                            .strong()
+                                            .color(Color32::from_rgb(216, 180, 254)),
+                                    )
+                                    .changed()
+                                {
+                                    if let Ok(mut st) = self.state.lock() {
+                                        st.emergency_visible = emerg_vis;
+                                        save_state_json(&st);
+                                    }
+                                }
+
+                                if ui
+                                    .button(
+                                        RichText::new("⚙️ Configurer les Numéros d'Urgence...")
+                                            .strong()
+                                            .color(Color32::from_rgb(203, 213, 225)),
+                                    )
+                                    .clicked()
+                                {
+                                    self.show_emergency_config_window = true;
+                                }
+                            });
+
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new("Format 16:9 :").size(11.5).strong().color(Color32::from_rgb(203, 213, 225)));
+                                let (mut pos_16_9, mut scale_pct) = {
+                                    let st = self.state.lock().unwrap();
+                                    (st.emergency_pos_16_9.clone(), st.emergency_scale_pct)
+                                };
+                                if ui.selectable_value(&mut pos_16_9, "left".to_string(), "⬅️ Gauche (Rectangle)").clicked()
+                                    || ui.selectable_value(&mut pos_16_9, "right".to_string(), "➡️ Droite (Rectangle)").clicked()
+                                    || ui.selectable_value(&mut pos_16_9, "top".to_string(), "⬆️ Haut (Bandeau)").clicked()
+                                {
+                                    if let Ok(mut st) = self.state.lock() {
+                                        st.emergency_pos_16_9 = pos_16_9;
+                                        save_state_json(&st);
+                                    }
+                                }
+                                ui.add_space(8.0);
+                                ui.label(RichText::new("Taille :").size(11.5).color(Color32::from_rgb(203, 213, 225)));
+                                if ui.add(egui::Slider::new(&mut scale_pct, 70..=160).suffix("%")).changed() {
+                                    if let Ok(mut st) = self.state.lock() {
+                                        st.emergency_scale_pct = scale_pct;
+                                        save_state_json(&st);
+                                    }
+                                }
+                            });
+            });
+    }
+
 
     fn render_tab_chat(&mut self, ui: &mut egui::Ui) {
                 // =========================================================
@@ -3532,7 +3658,7 @@ impl TelecommandeApp {
                         // 1. En-tête de la Section avec Badge et Indicateur de Connexion
                         ui.horizontal(|ui| {
                             ui.label(
-                                RichText::new("💬 6. CHAT TIKTOK LIVE & BOT MODÉRATEUR")
+                                RichText::new("💬 CHAT TIKTOK LIVE & MODÉRATION")
                                     .strong()
                                     .size(13.5)
                                     .color(Color32::from_rgb(147, 197, 253)),
@@ -3551,21 +3677,19 @@ impl TelecommandeApp {
                             {
                                 self.show_bot_config_window = true;
                             }
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                let (status_col, status_icon) = if status.to_lowercase().contains("connect") {
-                                    (Color32::from_rgb(34, 197, 94), "🟢")
-                                } else if status.to_lowercase().contains("attente") || status.to_lowercase().contains("connexion") {
-                                    (Color32::from_rgb(234, 179, 8), "🟡")
-                                } else {
-                                    (Color32::from_rgb(156, 163, 175), "⚪")
-                                };
-                                ui.label(
-                                    RichText::new(format!("{} {}", status_icon, status))
-                                        .size(11.0)
-                                        .color(status_col),
-                                );
-                            });
                         });
+                        // Statut du pont chat sur sa propre ligne (il chevauchait le bouton) ; la couleur suit
+                        // l'icône envoyée par le pont (« Déconnecté » contient « connect » : ne pas tester le mot)
+                        let status_col = if status.contains('🟢') {
+                            Color32::from_rgb(34, 197, 94)
+                        } else if status.contains('⏳') || status.contains('🟠') || status.contains('⚪') {
+                            Color32::from_rgb(234, 179, 8)
+                        } else if status.contains('❌') || status.contains('⚠') {
+                            Color32::from_rgb(248, 113, 113)
+                        } else {
+                            Color32::from_rgb(156, 163, 175)
+                        };
+                        ui.label(RichText::new(status.trim()).size(11.0).color(status_col));
 
                         ui.add_space(6.0);
 
@@ -3835,7 +3959,7 @@ impl TelecommandeApp {
 
                         ui.horizontal(|ui| {
                             ui.label(
-                                RichText::new("🎵 8. JUKEBOX & VOTES MUSICALES DU CHAT")
+                                RichText::new("🎵 JUKEBOX & VOTES MUSICAUX DU CHAT")
                                     .strong()
                                     .color(Color32::from_rgb(216, 180, 254)),
                             );
@@ -4045,313 +4169,6 @@ impl TelecommandeApp {
                     });
     }
 
-    fn render_tab_bannieres(&mut self, ui: &mut egui::Ui) {
-        let mut emerg_vis = if let Ok(st) = self.state.lock() { st.emergency_visible } else { false };
-                // =========================================================
-                // 7. ENCART TEXTE LIBRE SUR LE LIVE (BANNIÈRE SUR-MESURE)
-                // =========================================================
-                egui::Frame::none()
-                    .fill(Color32::from_rgb(20, 24, 34))
-                    .stroke(Stroke::new(1.2_f32, Color32::from_rgb(168, 85, 247)))
-                    .rounding(Rounding::same(8.0))
-                    .inner_margin(egui::Margin::same(12.0))
-                    .show(ui, |ui| {
-                        let (mut box_vis, mut has_title, mut title, mut title_font_sz, mut text, mut font_sz, mut align, mut bg_opac, mut border_w, mut border_rad, mut padding) = {
-                            let st = self.state.lock().unwrap();
-                            (
-                                st.custom_box_visible,
-                                st.custom_box_has_title,
-                                st.custom_box_title.clone(),
-                                st.custom_box_title_font_size,
-                                st.custom_box_text.clone(),
-                                st.custom_box_font_size,
-                                st.custom_box_align.clone(),
-                                st.custom_box_bg_opacity,
-                                st.custom_box_border_width,
-                                st.custom_box_border_radius,
-                                st.custom_box_padding,
-                            )
-                        };
-
-                        let mut changed = false;
-
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                RichText::new("📢 7. ENCART TEXTE LIBRE SUR LE LIVE (Bannière Sur-Mesure)")
-                                    .strong()
-                                    .size(13.5)
-                                    .color(Color32::from_rgb(216, 180, 254)),
-                            );
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                let btn_col = if box_vis {
-                                    Color32::from_rgb(22, 163, 74)
-                                } else {
-                                    Color32::from_rgb(75, 85, 99)
-                                };
-                                let btn_txt = if box_vis {
-                                    "👁️ ENCART AFFICHÉ (Cliquer pour Masquer)"
-                                } else {
-                                    "👁️ AFFICHER L'ENCART SUR LE LIVE"
-                                };
-                                if ui.add(egui::Button::new(RichText::new(btn_txt).strong().color(Color32::WHITE)).fill(btn_col)).clicked() {
-                                    box_vis = !box_vis;
-                                    changed = true;
-                                }
-                            });
-                        });
-
-                        ui.add_space(6.0);
-
-                        // Option Titre
-                        ui.horizontal(|ui| {
-                            if ui.checkbox(&mut has_title, RichText::new("🏷️ Activer un Titre").strong().color(Color32::from_rgb(147, 197, 253))).changed() {
-                                changed = true;
-                            }
-                            if has_title {
-                                ui.label(RichText::new("Titre :").color(Color32::WHITE));
-                                if ui.add(egui::TextEdit::singleline(&mut title).desired_width(180.0)).changed() {
-                                    changed = true;
-                                }
-                                ui.label(RichText::new("Taille titre :").size(11.0).color(Color32::from_rgb(203, 213, 225)));
-                                if ui.add(egui::Slider::new(&mut title_font_sz, 12..=64).suffix(" px")).changed() {
-                                    changed = true;
-                                }
-                            }
-                        });
-
-                        ui.add_space(4.0);
-                        ui.label(RichText::new("Texte / Message :").strong().color(Color32::WHITE));
-                        if ui.add(egui::TextEdit::multiline(&mut text).desired_rows(3).desired_width(ui.available_width())).changed() {
-                            changed = true;
-                        }
-
-                        ui.add_space(6.0);
-
-                        // Typographie & Alignement
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Taille Police :").size(12.0).color(Color32::from_rgb(203, 213, 225)));
-                            if ui.add(egui::Slider::new(&mut font_sz, 10..=80).suffix(" px")).changed() {
-                                changed = true;
-                            }
-                            ui.add_space(10.0);
-                            ui.label(RichText::new("Alignement :").size(12.0).color(Color32::from_rgb(203, 213, 225)));
-                            if ui.selectable_value(&mut align, "left".to_string(), "⬅️ Gauche").clicked()
-                                || ui.selectable_value(&mut align, "center".to_string(), "↔️ Centré").clicked()
-                                || ui.selectable_value(&mut align, "right".to_string(), "➡️ Droite").clicked()
-                            {
-                                changed = true;
-                            }
-                        });
-
-                        ui.add_space(4.0);
-
-                        // Options du Cadre (Fond, Opacité, Bordure, Arrondis, Marge)
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Opacité :").size(12.0).color(Color32::from_rgb(203, 213, 225)));
-                            if ui.add(egui::Slider::new(&mut bg_opac, 0..=100).suffix("%")).changed() {
-                                changed = true;
-                            }
-                            ui.add_space(8.0);
-                            ui.label(RichText::new("Bordure :").size(12.0).color(Color32::from_rgb(203, 213, 225)));
-                            if ui.add(egui::Slider::new(&mut border_w, 0..=8).suffix(" px")).changed() {
-                                changed = true;
-                            }
-                            ui.add_space(8.0);
-                            ui.label(RichText::new("Coins :").size(12.0).color(Color32::from_rgb(203, 213, 225)));
-                            if ui.add(egui::Slider::new(&mut border_rad, 0..=25).suffix(" px")).changed() {
-                                changed = true;
-                            }
-                            ui.add_space(8.0);
-                            ui.label(RichText::new("Marge :").size(12.0).color(Color32::from_rgb(203, 213, 225)));
-                            if ui.add(egui::Slider::new(&mut padding, 4..=30).suffix(" px")).changed() {
-                                changed = true;
-                            }
-                        });
-
-                        // Styles rapides prédéfinis
-                        ui.add_space(4.0);
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Styles rapides :").size(11.0).color(Color32::GRAY));
-                            if ui.small_button("⚡ Néon Violet").clicked() {
-                                if let Ok(mut st) = self.state.lock() {
-                                    st.custom_box_bg_color = "#15102a".to_string();
-                                    st.custom_box_bg_opacity = 92;
-                                    st.custom_box_border_color = "#a855f7".to_string();
-                                    st.custom_box_border_width = 2;
-                                    st.custom_box_border_radius = 12;
-                                    st.custom_box_text_color = "#ffffff".to_string();
-                                    save_state_json(&st);
-                                }
-                            }
-                            if ui.small_button("🚨 Alerte Rouge").clicked() {
-                                if let Ok(mut st) = self.state.lock() {
-                                    st.custom_box_bg_color = "#2a0f12".to_string();
-                                    st.custom_box_bg_opacity = 95;
-                                    st.custom_box_border_color = "#ef4444".to_string();
-                                    st.custom_box_border_width = 3;
-                                    st.custom_box_border_radius = 8;
-                                    st.custom_box_text_color = "#fee2e2".to_string();
-                                    save_state_json(&st);
-                                }
-                            }
-                            if ui.small_button("📜 Dark Épuré").clicked() {
-                                if let Ok(mut st) = self.state.lock() {
-                                    st.custom_box_bg_color = "#0b0d14".to_string();
-                                    st.custom_box_bg_opacity = 96;
-                                    st.custom_box_border_color = "#334155".to_string();
-                                    st.custom_box_border_width = 1;
-                                    st.custom_box_border_radius = 6;
-                                    st.custom_box_text_color = "#f8fafc".to_string();
-                                    save_state_json(&st);
-                                }
-                            }
-                            if ui.small_button("🪟 Flou Furtif").clicked() {
-                                if let Ok(mut st) = self.state.lock() {
-                                    st.custom_box_bg_color = "#000000".to_string();
-                                    st.custom_box_bg_opacity = 50;
-                                    st.custom_box_border_color = "#64748b".to_string();
-                                    st.custom_box_border_width = 1;
-                                    st.custom_box_border_radius = 10;
-                                    st.custom_box_text_color = "#ffffff".to_string();
-                                    save_state_json(&st);
-                                }
-                            }
-                        });
-
-                        if changed {
-                            if let Ok(mut st) = self.state.lock() {
-                                st.custom_box_visible = box_vis;
-                                st.custom_box_has_title = has_title;
-                                st.custom_box_title = title;
-                                st.custom_box_title_font_size = title_font_sz;
-                                st.custom_box_text = text;
-                                st.custom_box_font_size = font_sz;
-                                st.custom_box_align = align;
-                                st.custom_box_bg_opacity = bg_opac;
-                                st.custom_box_border_width = border_w;
-                                st.custom_box_border_radius = border_rad;
-                                st.custom_box_padding = padding;
-                                save_state_json(&st);
-                            }
-                        }
-                    });
-
-                ui.add_space(8.0);
-
-        ui.add_space(6.0);
-                // =========================================================
-                // 5. BANDEAU TRIGGER WARNING (SUJET SENSIBLE)
-                // =========================================================
-                egui::Frame::group(ui.style())
-                    .fill(Color32::from_rgb(28, 20, 24))
-                    .stroke(Stroke::new(1.0_f32, Color32::from_rgb(239, 68, 68)))
-                    .rounding(Rounding::same(8.0))
-                    .inner_margin(egui::Margin::same(10.0))
-                    .show(ui, |ui| {
-                        let (mut tw_vis, mut tw_txt) = {
-                            let st = self.state.lock().unwrap();
-                            (st.trigger_warning_visible, st.trigger_warning_text.clone())
-                        };
-
-                        ui.horizontal(|ui| {
-                            if ui
-                                .checkbox(
-                                    &mut tw_vis,
-                                    RichText::new("⚠️ Avertissement Sensible (Trigger Warning) sur le Live")
-                                        .strong()
-                                        .color(Color32::from_rgb(252, 165, 165)),
-                                )
-                                .changed()
-                            {
-                                if let Ok(mut st) = self.state.lock() {
-                                    st.trigger_warning_visible = tw_vis;
-                                    save_state_json(&st);
-                                }
-                            }
-                        });
-
-                        ui.horizontal(|ui| {
-                            ui.label("Texte TW :");
-                            if ui.text_edit_singleline(&mut tw_txt).changed() {
-                                if let Ok(mut st) = self.state.lock() {
-                                    st.trigger_warning_text = tw_txt;
-                                    save_state_json(&st);
-                                }
-                            }
-                        });
-                    });
-
-                ui.add_space(8.0);
-
-        ui.add_space(6.0);
-
-        egui::Frame::group(ui.style())
-            .fill(Color32::from_rgb(24, 26, 34))
-            .stroke(Stroke::new(1.0_f32, Color32::from_rgb(147, 51, 234)))
-            .rounding(Rounding::same(8.0))
-            .inner_margin(egui::Margin::same(10.0))
-            .show(ui, |ui| {
-                ui.label(
-                    RichText::new("📞 NUMÉROS D'URGENCE VSS / INCESTE (Affichage & Style)")
-                        .strong()
-                        .color(Color32::from_rgb(216, 180, 254)),
-                );
-                ui.add_space(4.0);
-                            // Barre de contrôle rapide du Panneau Numéros d'Urgence
-                            ui.horizontal(|ui| {
-                                if ui
-                                    .checkbox(
-                                        &mut emerg_vis,
-                                        RichText::new("🚨 Afficher le Grand Panneau des Numéros d'Urgence sur le Live")
-                                            .strong()
-                                            .color(Color32::from_rgb(216, 180, 254)),
-                                    )
-                                    .changed()
-                                {
-                                    if let Ok(mut st) = self.state.lock() {
-                                        st.emergency_visible = emerg_vis;
-                                        save_state_json(&st);
-                                    }
-                                }
-
-                                if ui
-                                    .button(
-                                        RichText::new("⚙️ Configurer les Numéros d'Urgence...")
-                                            .strong()
-                                            .color(Color32::from_rgb(203, 213, 225)),
-                                    )
-                                    .clicked()
-                                {
-                                    self.show_emergency_config_window = true;
-                                }
-                            });
-
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new("Format 16:9 :").size(11.5).strong().color(Color32::from_rgb(203, 213, 225)));
-                                let (mut pos_16_9, mut scale_pct) = {
-                                    let st = self.state.lock().unwrap();
-                                    (st.emergency_pos_16_9.clone(), st.emergency_scale_pct)
-                                };
-                                if ui.selectable_value(&mut pos_16_9, "left".to_string(), "⬅️ Gauche (Rectangle)").clicked()
-                                    || ui.selectable_value(&mut pos_16_9, "right".to_string(), "➡️ Droite (Rectangle)").clicked()
-                                    || ui.selectable_value(&mut pos_16_9, "top".to_string(), "⬆️ Haut (Bandeau)").clicked()
-                                {
-                                    if let Ok(mut st) = self.state.lock() {
-                                        st.emergency_pos_16_9 = pos_16_9;
-                                        save_state_json(&st);
-                                    }
-                                }
-                                ui.add_space(8.0);
-                                ui.label(RichText::new("Taille :").size(11.5).color(Color32::from_rgb(203, 213, 225)));
-                                if ui.add(egui::Slider::new(&mut scale_pct, 70..=160).suffix("%")).changed() {
-                                    if let Ok(mut st) = self.state.lock() {
-                                        st.emergency_scale_pct = scale_pct;
-                                        save_state_json(&st);
-                                    }
-                                }
-                            });
-            });
-    }
 
 
     fn render_tab_articles(&mut self, ui: &mut egui::Ui) {
@@ -4458,7 +4275,7 @@ impl TelecommandeApp {
                     .inner_margin(egui::Margin::same(10.0))
                     .show(ui, |ui| {
                         ui.label(
-                            RichText::new("🔗 1. RÉCUPÉRER UN ARTICLE (PRESSE, FACEBOOK, MÉDIAS)")
+                            RichText::new("🔗 RÉCUPÉRER UN ARTICLE (PRESSE, FACEBOOK, MÉDIAS)")
                                 .strong()
                                 .color(Color32::from_rgb(56, 189, 248)),
                         );
@@ -4538,7 +4355,7 @@ impl TelecommandeApp {
                     .inner_margin(egui::Margin::same(10.0))
                     .show(ui, |ui| {
                         ui.label(
-                            RichText::new("📝 2. CONTENU DE L'ARTICLE")
+                            RichText::new("📝 CONTENU DE L'ARTICLE")
                                 .strong()
                                 .color(Color32::from_rgb(250, 204, 21)),
                         );
@@ -4629,7 +4446,7 @@ impl TelecommandeApp {
                     .inner_margin(egui::Margin::same(10.0))
                     .show(ui, |ui| {
                         ui.label(
-                            RichText::new("🎨 3. PERSONNALISATION COMPLÈTE DE LA FENÊTRE")
+                            RichText::new("🎨 APPARENCE DE LA FENÊTRE")
                                 .strong()
                                 .color(Color32::from_rgb(216, 180, 254)),
                         );
@@ -5131,8 +4948,73 @@ impl TelecommandeApp {
                 });
             });
 
+    }
+
+    // =========================================================
+    // ONGLETS (composés des sections ; la configuration est dans Réglages)
+    // =========================================================
+
+    /// 🔴 Direct : ce qu'on touche pendant le live
+    fn render_tab_direct(&mut self, ui: &mut egui::Ui) {
+        self.render_debate_timer(ui);
         ui.add_space(8.0);
+        self.section_branch_active(ui);
+        ui.add_space(8.0);
+        self.section_scene_texts(ui);
+        ui.add_space(8.0);
+        self.render_tab_soundboard(ui);
+    }
+
+    /// 🖼️ Contenus : ce qu'on montre sur la scène
+    fn render_tab_contenus(&mut self, ui: &mut egui::Ui) {
+        self.section_video(ui);
+        ui.add_space(4.0);
+        egui::CollapsingHeader::new(RichText::new("📺 Préréglages et options YouTube").strong())
+            .id_salt("contenus_youtube")
+            .show(ui, |ui| self.render_tab_youtube(ui));
+        ui.add_space(8.0);
+        self.section_annonce(ui);
+        ui.add_space(8.0);
+        egui::CollapsingHeader::new(RichText::new("📰 Revue de presse").strong())
+            .id_salt("contenus_presse")
+            .default_open(true)
+            .show(ui, |ui| self.render_tab_articles(ui));
+        ui.add_space(8.0);
+        self.section_music_detected(ui);
+    }
+
+    /// 👥 Public : chat, questions épinglées, sondages, jauge de likes, jukebox
+    fn render_tab_public(&mut self, ui: &mut egui::Ui) {
         self.render_tab_chat(ui);
+        ui.add_space(8.0);
+        self.render_tab_sondages(ui);
+    }
+
+    /// 📝 Bilan : demandes d'aide à recontacter, journal du live
+    fn render_tab_bilan(&mut self, ui: &mut egui::Ui) {
+        self.render_help_alerts(ui);
+        ui.add_space(8.0);
+        self.render_journal_controls(ui);
+    }
+
+    /// ⚙️ Réglages : tout ce qui se configure une fois, rangé par thème (volets repliables)
+    fn render_tab_reglages(&mut self, ui: &mut egui::Ui) {
+        fn volet(ui: &mut egui::Ui, id: &str, title: &str, open: bool, add: impl FnOnce(&mut egui::Ui)) {
+            egui::CollapsingHeader::new(RichText::new(title).strong().size(13.0))
+                .id_salt(id)
+                .default_open(open)
+                .show(ui, add);
+            ui.add_space(4.0);
+        }
+        volet(ui, "reg_branches", "🎛️ Branches du live", true, |ui| self.render_branch_editor(ui));
+        volet(ui, "reg_scenes", "🖼️ Mise en page des scènes", false, |ui| self.render_stage_layout_controls(ui));
+        volet(ui, "reg_securite", "🛡️ Sécurité : numéros d'urgence et avertissement", false, |ui| {
+            self.section_emergency_display(ui);
+            ui.add_space(6.0);
+            self.section_trigger_warning(ui);
+        });
+        volet(ui, "reg_remerciements", "💜 Remerciements automatiques", false, |ui| self.render_thanks_controls(ui));
+        volet(ui, "reg_comptes", "👤 Comptes TikTok et auto-tappeur", false, |ui| self.render_tab_preferences(ui));
     }
 
     // =========================================================
@@ -5182,10 +5064,7 @@ impl TelecommandeApp {
 
         ui.add_space(8.0);
 
-        // 2. Branches du live (noms, couleurs, textes, fonds) — remplace l'ancien gestionnaire à 8 décors fixes
-        self.render_branch_editor(ui);
-        ui.add_space(8.0);
-        self.render_stage_layout_controls(ui);
+        // Branches et mise en page des scènes : volets dédiés de l'onglet Réglages
 
         ui.add_space(8.0);
 
@@ -5521,7 +5400,7 @@ impl TelecommandeApp {
                         let mut add_jingle_clicked = false;
                         ui.horizontal(|ui| {
                             ui.label(
-                                RichText::new("🔊 5. BOÎTE À JINGLES & MÉDIAS DU LIVE (MP3 & VIDÉOS)")
+                                RichText::new("🔊 SONS & JINGLES (MP3 & VIDÉOS)")
                                     .strong()
                                     .color(Color32::from_rgb(216, 180, 254)),
                             );
@@ -5726,14 +5605,11 @@ impl eframe::App for TelecommandeApp {
                     .auto_shrink([false; 2])
                     .show(ui, |ui| {
                         match self.active_tab {
-                            TelecommandeTab::Regie => self.render_tab_regie(ui),
-                            TelecommandeTab::Youtube => self.render_tab_youtube(ui),
-                            TelecommandeTab::Articles => self.render_tab_articles(ui),
-                            TelecommandeTab::Sondages => self.render_tab_sondages(ui),
-                            TelecommandeTab::Soundboard => self.render_tab_soundboard(ui),
-                            TelecommandeTab::Preferences => self.render_tab_preferences(ui),
-                            TelecommandeTab::Chat => self.render_tab_chat(ui),
-                            TelecommandeTab::Bannieres => self.render_tab_bannieres(ui),
+                            TelecommandeTab::Direct => self.render_tab_direct(ui),
+                            TelecommandeTab::Contenus => self.render_tab_contenus(ui),
+                            TelecommandeTab::Public => self.render_tab_public(ui),
+                            TelecommandeTab::Bilan => self.render_tab_bilan(ui),
+                            TelecommandeTab::Reglages => self.render_tab_reglages(ui),
                         }
                     });
             }

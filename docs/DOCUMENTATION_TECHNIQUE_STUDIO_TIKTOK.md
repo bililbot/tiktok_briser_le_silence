@@ -1,5 +1,5 @@
 # 📜 DOCUMENTATION TECHNIQUE — LIVE RÉGIE
-**Version :** 2.1.3 (`rust_studio/Cargo.toml`, voir [CHANGELOG](../CHANGELOG.md)) • **Système :** Windows (x64) • **Langages :** Rust (régie egui 0.29) & HTML5/CSS3/ES6 (scènes) & Python (pont chat)
+**Version :** 2.2.0 (`rust_studio/Cargo.toml`, voir [CHANGELOG](../CHANGELOG.md)) • **Système :** Windows (x64) • **Langages :** Rust (régie egui 0.29) & HTML5/CSS3/ES6 (scènes) & Python (pont chat)
 **Dernière mise à jour de la doc :** 06/11/2026 — alignée sur `rust_studio/src/main.rs`
 
 > Ce document décrit le **fonctionnement interne**. Pour l'utilisation au quotidien, voir le [guide utilisateur](GUIDE_UTILISATEUR.md).
@@ -97,20 +97,18 @@ La route `/assets/` refuse les chemins contenant `..`, `\` ou `:`, et sert PNG, 
 - **sélecteur unique des branches** (généré depuis `branches.json`) ;
 - bascules urgences / TW / vidéo / jukebox.
 
-**7 onglets** sur deux rangées (`render_tab_selector`) :
+**5 onglets** (`render_tab_selector`), rangés selon le moment d'utilisation. Chaque onglet est **composé de fonctions de section** ; la configuration est regroupée dans Réglages.
 
-| Onglet (libellé) | Fonction (`render_tab_*`) | Contenu |
+| Onglet | Fonction | Sections affichées |
 | :--- | :--- | :--- |
-| **[ Régie ]** | `regie` | Chrono de débat, remerciements auto, demandes d'aide, journal du live, branche active, contenu du lecteur et du bandeau |
-| **[ YouTube ]** | `youtube` | URL YouTube (Shorts, Watch, Embed, ID) ou vidéo locale ; options `Autoplay`, `Loop`, `Controls`, `Mute`, `Anti-détection` |
-| **[ Presse ]** | `articles` | Extraction d'articles (`tools_python/scraper_article.py`), auto-défilement, personnalisation de la fenêtre |
-| **🪧 Bannières** | `bannieres` | Encart de texte libre (`custom_box_*`), bandeau d'avertissement (TW), affichage et configuration des numéros d'urgence |
-| **🗳️ Sondages & Chat** | `sondages` (+ `chat`) | Jauge de likes, sondage `!1`…`!4`, connexion au chat et bot modérateur, messages épinglés, jukebox `!musique` / `!sr` |
-| **🎵 Sons** | `soundboard` | Boîte à jingles (MP3 / vidéo, `jingles_library.json`) |
-| **[ Préférences ]** | `preferences` | Comptes TikTok, **éditeur des branches**, auto-tappeur |
+| **🔴 Direct** | `render_tab_direct` | `render_debate_timer`, `section_branch_active`, `section_scene_texts`, `render_tab_soundboard` |
+| **🖼️ Contenus** | `render_tab_contenus` | `section_video`, volet `render_tab_youtube` (préréglages), `section_annonce`, volet `render_tab_articles`, `section_music_detected` |
+| **👥 Public** | `render_tab_public` | `render_tab_chat` (chat, épinglés, jukebox), `render_tab_sondages` (jauge, sondage) |
+| **📝 Bilan** | `render_tab_bilan` | `render_help_alerts`, `render_journal_controls` |
+| **⚙️ Réglages** | `render_tab_reglages` | volets repliables : `render_branch_editor`, `render_stage_layout_controls`, Sécurité (`section_emergency_display` + `section_trigger_warning`), `render_thanks_controls`, `render_tab_preferences` (comptes, auto-tappeur) |
 
-> ℹ️ L'onglet **Bannières** n'apparaissait plus dans la barre jusqu'en 2.0.0. Son contenu était donc inaccessible. Il est rétabli en 2.1.0.
-> L'onglet `Chat` n'a pas de bouton propre : son contenu est affiché dans « Sondages & Chat ».
+> ℹ️ En 2.2.0, les anciens onglets Régie et Bannières ont été découpés en fonctions `section_*` (code déplacé tel quel). L'encart d'annonce, qui existait en double, a été supprimé de l'ancien onglet Régie.
+> Barre du haut : voyant **● / ○ Chat** (`chat_status` contient « 🟢 ») et badge **🆘 N** (demandes non traitées, clic → Bilan).
 > La configuration du bot et celle des numéros d'urgence s'ouvrent dans des fenêtres séparées (`bot_config.json`, `emergency_numbers.json`).
 
 ---
@@ -134,8 +132,8 @@ Chaque branche du live est entièrement configurable, sans recompilation. La con
 * **Premier lancement** : si `branches.json` n'existe pas, il est créé avec les 4 branches historiques (VSS, Politique, Musique, Chill). Les fonds déjà choisis dans l'ancien gestionnaire à 8 décors (`custom_backgrounds`) sont repris.
 * **Sélecteur unique** : la rangée de boutons en haut de la régie (et la version compacte du mode mini) est générée depuis la config, avec la couleur de chaque branche.
   * Les **3 premières** branches ont les raccourcis **F9, F10, F11** ; **F12** reste la vidéo.
-  * Le bloc « 1. BRANCHE ACTIVE » de l'onglet Régie ne sélectionne plus de branche. Il propose « ↺ Remettre les textes par défaut » et « 💾 Garder les textes actuels comme défaut ».
-* **Éditeur** (onglet **[ Préférences ]**, bloc « 🎛️ BRANCHES DU LIVE ») :
+  * Le bloc « BRANCHE ACTIVE » de l'onglet Direct ne sélectionne pas de branche. Il propose « ↺ Remettre les textes par défaut » et « 💾 Garder les textes actuels comme défaut ».
+* **Éditeur** (onglet **⚙️ Réglages**, volet « 🎛️ Branches du live ») :
   * pour chaque branche : nom, deux couleurs, étiquette, titre, sujet, sous-titre, mode, urgences et deux fonds ;
   * boutons **⬆ Monter** (l'ordre décide des raccourcis F9 à F11), **🗑 Supprimer**, **➕ Ajouter une branche** et **🔄 Rétablir les 4 branches d'origine** ;
   * les modifications restent en **brouillon** jusqu'à **💾 Enregistrer** (ou **Annuler**).
@@ -182,7 +180,7 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 | **F3** | Affiche / masque les numéros d'urgence |
 | **F4** | Affiche / masque l'encart d'annonce libre (`custom_box_visible`) |
 | **F8** | Bouclier anti-raid |
-| **F9 / F10 / F11** | 1re / 2e / 3e branche de `branches.json` (ordre réglable dans Préférences) |
+| **F9 / F10 / F11** | 1re / 2e / 3e branche de `branches.json` (ordre réglable dans Réglages → Branches du live) |
 | **F12** | Affiche / masque la vidéo |
 
 * **Implémentation** : la table `GLOBAL_HOTKEYS` (`win_audio_media.rs`) associe chaque touche à son action.
@@ -209,7 +207,7 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 
 ## ⏱️ 8. Chrono de Débat
 
-* **Commandes** : un bloc en tête de l'onglet **[ Régie ]**, avec :
+* **Commandes** : un bloc en tête de l'onglet **🔴 Direct**, avec :
   * un nom d'intervenant·e (`timer_label`) ;
   * les préréglages `▶ 1 min`, `▶ 3 min`, `▶ 5 min` ;
   * les boutons `+30 s`, `⏸ Pause` / `▶ Reprendre` et `⏹ Stop` ;
@@ -232,7 +230,7 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
   * des compteurs (`journal.comments`, `gifts` en nombre total de cadeaux, `shares`, `follows`), incrémentés à la réception dans `/chat_ingest` ;
   * une chronologie horodatée, tenue par **un seul thread observateur** : toutes les 500 ms, il compare l'état à la photo précédente et note les changements de branche, l'activation et la levée du bouclier, les lancements de chrono, les messages épinglés, le lancement et la fin des sondages (avec les votes) et les nouvelles demandes d'aide.
   * Une épingle affichée moins de 500 ms peut ne pas être notée.
-* **Régie** : bloc « 📝 JOURNAL DU LIVE » dans l'onglet **[ Régie ]**.
+* **Régie** : bloc « 📝 JOURNAL DU LIVE » dans l'onglet **📝 Bilan**.
   * Il affiche l'heure de début et les chiffres en cours.
   * Le bouton **🏁 Terminer le live & enregistrer le journal** écrit `journaux/live_AAAA-MM-JJ_HHhMM.md` puis repart sur un journal vierge.
   * Le bouton **📂 Dossier** ouvre le dossier des journaux.
@@ -252,7 +250,7 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 
 * **Détection** : tout commentaire contenant un mot-clé d'un déclencheur `emergency` actif (`bot_config.json`, par exemple « aide, urgence, 119, 3919 ») est ajouté à `help_alerts` avec l'heure locale, le pseudo, le @handle et le texte.
 * **Avant le filtre anti-insultes** : un message d'aide qui contient une insulte est masqué du chat, mais il est quand même noté, et il affiche quand même les numéros d'urgence.
-* **Régie** : bloc repliable « 🆘 DEMANDES D'AIDE — N à traiter » dans l'onglet **[ Régie ]**.
+* **Régie** : bloc repliable « 🆘 DEMANDES D'AIDE — N à traiter » dans l'onglet **📝 Bilan**, et badge **🆘 N** dans la barre du haut.
   * Il s'ouvre automatiquement s'il reste des demandes à traiter.
   * Pour chaque demande : un bouton 📋 pour copier le pseudo et un bouton ✅ Traité / ↩ À traiter.
   * Un bouton efface les demandes traitées.
@@ -288,7 +286,7 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 * **Pont chat** (`tiktok_chat_bridge.py`, TikTokLive 7.x) : il envoie à `POST /chat_ingest` des événements :
   * `gift` (`gift`, `count`) : un cadeau en série n'est envoyé qu'une fois, à la fin de la série (`event.streaking`), avec le total `repeat_count` ;
   * `share` et `follow`.
-* **Régie** : bloc « 💜 Remerciements auto » dans l'onglet **[ Régie ]**, avec une case d'activation (`thanks_enabled`, activée par défaut) et un bouton « 👁 Aperçu » qui envoie un faux cadeau.
+* **Régie** : bloc « 💜 Remerciements auto » dans **⚙️ Réglages** (volet Remerciements automatiques), avec une case d'activation (`thanks_enabled`, activée par défaut) et un bouton « 👁 Aperçu » qui envoie un faux cadeau.
 * **État** : `thanks_seq` (compteur) et `thanks_queue` (les 20 derniers `ThanksItem`). Rien n'est ajouté pendant le bouclier anti-raid.
 * **Scènes** :
   * une bulle `#thanksBubble` en bas à droite affiche « 💜 Merci @x pour 5 × Rose ! », « 🔁 Merci @x pour le partage ! » ou « ➕ Bienvenue @x, merci pour le follow ! » ;
@@ -424,4 +422,4 @@ Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).
   * au début d'un redimensionnement, la hauteur de ces encarts est figée, si bien qu'élargir le cadre agrandit le texte ;
   * la grille des urgences passe en `repeat(auto-fit, minmax(12em, 1fr))`.
 * **Vidéo** : avec une hauteur explicite, `#videoWidget.fill-on` fait occuper à la zone vidéo toute la hauteur, sous le bandeau. `object-fit` suit `video_fit` (`contain` ou `cover`). L'iframe YouTube remplit l'encart et cadre elle-même la vidéo.
-* **Réglages** (Préférences → « Mise en page des scènes ») : `fit_content_auto`, `video_fit`, réinitialisation.
+* **Réglages** (⚙️ Réglages → « Mise en page des scènes ») : `fit_content_auto`, `video_fit`, réinitialisation.

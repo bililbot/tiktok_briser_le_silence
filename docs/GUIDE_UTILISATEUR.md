@@ -61,7 +61,10 @@ Le plus simple est de créer une source **Capture de fenêtre** pour chacune. Qu
 
 ### La barre du haut (toujours visible)
 - **🛡️ BOUCLIER ANTI-RAID (F8)** : le bouton d'urgence en cas d'attaque dans le chat (voir §5).
-- **LIVE RÉGIE v2.1.3** : le nom et la version.
+- **LIVE RÉGIE v2.2.0** : le nom et la version.
+- **Les voyants** à côté :
+  - **● Chat** (vert) ou **○ Chat** (gris) indique si le chat est connecté ; le détail s'affiche au survol ;
+  - **🆘 N** (rouge) apparaît quand des demandes d'aide sont à traiter ; un clic ouvre le Bilan.
 - **Format** : bascule entre les scènes 9:16 et 16:9.
 - **Mode Mini** : une petite fenêtre avec l'essentiel, à garder dans un coin de l'écran.
 - **Les boutons de branches** (💜 VSS & Inceste, ✊ Politique, 🎸 Musique, ☕ Chill…) changent le thème du live. Les 3 premiers ont les raccourcis **F9, F10, F11**.
@@ -70,20 +73,20 @@ Le plus simple est de créer une source **Capture de fenêtre** pour chacune. Qu
 ### Les onglets
 | Onglet | À quoi il sert |
 | :--- | :--- |
-| **[ Régie ]** | Chrono de débat, remerciements, demandes d'aide, journal du live, branche active, textes du bandeau |
-| **[ YouTube ]** | Passer une vidéo YouTube ou une vidéo de ton PC sur la scène |
-| **[ Presse ]** | Afficher un article (lien web) dans une fenêtre dédiée qui défile toute seule |
-| **🪧 Bannières** | Encart de texte libre, avertissement de sujet sensible, numéros d'urgence |
-| **🗳️ Sondages & Chat** | Connexion au chat, questions épinglées, sondages, jauge de likes, jukebox |
-| **🎵 Sons** | Boîte à jingles (sons et vidéos courtes) |
-| **[ Préférences ]** | Comptes TikTok, **personnalisation des branches**, auto-tappeur |
+| **🔴 Direct** | Pendant le live : chrono de débat, branche active, textes de la scène, sons et jingles |
+| **🖼️ Contenus** | Ce que tu montres : vidéo (YouTube ou fichiers), annonce, revue de presse, musique en cours |
+| **👥 Public** | Ton public : chat et questions épinglées, jukebox, sondages, jauge de likes |
+| **📝 Bilan** | Demandes d'aide à recontacter, journal du live |
+| **⚙️ Réglages** | Tout ce qui se configure une fois : branches, mise en page des scènes, sécurité (numéros d'urgence, avertissement), remerciements, comptes TikTok, auto-tappeur |
+
+> 💡 La règle : les quatre premiers onglets servent **pendant** le live ; tout ce qui se règle à l'avance est dans **⚙️ Réglages**, rangé en volets que tu ouvres d'un clic.
 
 ---
 
 ## 4. Préparer un live (check-list)
 
 1. Lance **Live Régie**, puis **TikTok LIVE Studio**, et vérifie que les scènes s'affichent.
-2. Onglet **🗳️ Sondages & Chat** : tape ton pseudo, puis clique **⚡ Connecter au Live**.
+2. Onglet **👥 Public** : tape ton pseudo, puis clique **⚡ Connecter au Live**.
    - Tu peux le faire **avant** de démarrer le live : la régie se connectera toute seule dès que tu seras en direct.
 3. Choisis la **branche** du jour dans la rangée du haut.
 4. Si le sujet est sensible, active **[TW]** (avertissement) et vérifie les **numéros d'urgence** (**[!] Urg.**).
@@ -96,12 +99,12 @@ Le plus simple est de créer une source **Capture de fenêtre** pour chacune. Qu
 ### Changer de thème (branche)
 Clique sur une branche en haut, ou appuie sur **F9 / F10 / F11**. Le fond, les couleurs, le titre et les textes changent d'un coup.
 - Sur une branche comme VSS, les numéros d'urgence s'affichent automatiquement : c'est réglable par branche.
-- **Branche active** (onglet Régie) :
+- **Branche active** (onglet Direct) :
   - **↺ Remettre les textes par défaut** annule tes modifications de textes ;
   - **💾 Garder les textes actuels comme défaut** fait de tes textes actuels les textes de la branche.
 
 ### Donner la parole : le chrono de débat
-Onglet **Régie** → **⏱️ CHRONO DE DÉBAT** :
+Onglet **🔴 Direct** → **⏱️ CHRONO DE DÉBAT** :
 - écris le nom de la personne (facultatif), puis clique **▶ 1 min**, **▶ 3 min** ou **▶ 5 min** ;
 - en cours de route : **+30 s**, **⏸ Pause** / **▶ Reprendre**, **⏹ Stop** ;
 - sur la scène, la pastille passe à l'**orange** à 30 s, puis au **rouge** à 15 s. Un **gong** discret sonne à la fin.
@@ -117,26 +120,26 @@ Appuie sur **F8** (ou sur le gros bouton rouge) :
 
 ### Mettre une question en avant
 - **F2** épingle la **dernière question** posée dans le chat (un message avec un « ? »). Rappuie pour la retirer.
-- Tu peux aussi épingler n'importe quel message depuis l'onglet **Sondages & Chat** (bouton **📌**).
+- Tu peux aussi épingler n'importe quel message depuis l'onglet **👥 Public** (bouton **📌**).
 - Les spectateurs peuvent proposer une question en écrivant `!question`.
 
 ### Remercier ton public
 Les remerciements sont **automatiques** : une bulle « 💜 Merci @pseudo pour 5 × Rose ! » apparaît pour les cadeaux, les partages et les follows.
 - Une série de cadeaux ne donne qu'une seule bulle, avec le total.
-- Tu peux tout couper avec la case **Remerciements auto** (onglet Régie).
+- Tu peux tout couper avec la case **Remerciements auto** (⚙️ Réglages → Remerciements automatiques).
 
 ### Les demandes d'aide 🆘
 Quand quelqu'un écrit un mot comme « aide », « 119 », « 3919 » ou « urgence » :
 - les numéros d'aide s'affichent ;
-- le message est noté dans **🆘 DEMANDES D'AIDE** (onglet Régie). Cette liste est **privée** : elle n'apparaît jamais sur le live.
+- le message est noté dans **🆘 DEMANDES D'AIDE** (onglet 📝 Bilan). Un voyant rouge **🆘 N** apparaît aussi dans la barre du haut : un clic ouvre le Bilan. Cette liste est **privée** : elle n'apparaît jamais sur le live.
 - **📋** copie le pseudo, pour retrouver la personne sur TikTok après le live. **✅ Traité** la marque comme traitée.
 
 ### Sons, vidéos, articles, sondages
-- **Sons** : onglet **🎵 Sons**. **F1** lance la sirène.
-- **Vidéo** : onglet **[ YouTube ]**. Colle un lien YouTube ou choisis une vidéo de ton PC. **F12** l'affiche ou la masque.
-- **Article** : onglet **[ Presse ]**. Colle le lien, clique **🪄 Extraire**, puis ouvre la fenêtre dédiée.
-- **Sondage** : onglet **🗳️ Sondages & Chat**. Écris la question et les choix ; les spectateurs votent en tapant `!1`, `!2`, `!3` ou `!4`.
-- **Encart d'annonce** : onglet **🪧 Bannières**. Écris ton message, et **F4** l'affiche ou le masque.
+- **Sons** : onglet **🔴 Direct**, bloc **Sons & jingles**. **F1** lance la sirène.
+- **Vidéo** : onglet **🖼️ Contenus**. Colle un lien YouTube ou choisis une vidéo de ton PC. **F12** l'affiche ou la masque.
+- **Article** : onglet **🖼️ Contenus**, volet **Revue de presse**. Colle le lien, clique **🪄 Extraire**, puis ouvre la fenêtre dédiée.
+- **Sondage** : onglet **👥 Public**. Écris la question et les choix ; les spectateurs votent en tapant `!1`, `!2`, `!3` ou `!4`.
+- **Encart d'annonce** : onglet **🖼️ Contenus**, bloc **Annonce**. Écris ton message, et **F4** l'affiche ou le masque.
 
 ### Placer et redimensionner les encarts
 Directement sur la scène, ouverte dans le navigateur ou dans TikTok LIVE Studio :
@@ -150,7 +153,7 @@ Le contenu suit automatiquement :
 
 La disposition est **enregistrée par Live Régie** : tu retrouves la même dans TikTok LIVE Studio et dans le navigateur, même après une relance.
 
-Réglages dans **Préférences → 🖼️ Mise en page des scènes** :
+Réglages dans **⚙️ Réglages → 🖼️ Mise en page des scènes** :
 - ajustement automatique activé ou non ;
 - vidéo en « Cadre entier » ou en « Remplir » ;
 - **↺ Réinitialiser la mise en page**, qui remet tous les encarts à leur place d'origine sur toutes les scènes.
@@ -162,7 +165,7 @@ Pas besoin de toucher à quoi que ce soit : la régie **se reconnecte toute seul
 
 ## 6. Après le live
 
-Onglet **Régie** → **📝 JOURNAL DU LIVE** → **🏁 Terminer le live & enregistrer le journal**.
+Onglet **📝 Bilan** → **📝 JOURNAL DU LIVE** → **🏁 Terminer le live & enregistrer le journal**.
 
 Un fichier est créé dans le dossier `journaux/` (bouton **📂 Dossier**). Il contient :
 - la durée et les chiffres : commentaires, cadeaux, partages, follows, demandes d'aide ;
@@ -194,7 +197,7 @@ Ils fonctionnent même si la régie est réduite ou si tu es dans une autre fen�
 ## 8. Personnaliser
 
 ### Les branches (thèmes du live)
-Onglet **[ Préférences ]** → **🎛️ BRANCHES DU LIVE**. Ouvre une branche pour régler :
+Onglet **⚙️ Réglages** → volet **🎛️ Branches du live**. Ouvre une branche pour régler :
 - le **nom du bouton** (avec emoji) et les **couleurs** ;
 - l'étiquette et le titre affichés sur la scène, le sujet et le sous-titre par défaut ;
 - le mode du bandeau, et l'affichage automatique des numéros d'urgence ;
@@ -205,13 +208,13 @@ Tu peux aussi **➕ Ajouter** une branche, **⬆ Monter** pour changer l'ordre (
 Rien n'est appliqué avant **💾 Enregistrer**. **Annuler** abandonne les modifications.
 
 ### Le bot du chat
-Onglet **🗳️ Sondages & Chat** → **⚙️ Configurer le Bot…** : mots-clés d'urgence, mots interdits (filtre anti-insultes), commandes qui épinglent ou lancent un son.
+Onglet **👥 Public** → **⚙️ Configurer le Bot…** : mots-clés d'urgence, mots interdits (filtre anti-insultes), commandes qui épinglent ou lancent un son.
 
 ### Les numéros d'urgence
-Onglet **🪧 Bannières** → **⚙️ Configurer les Numéros d'Urgence…**.
+Onglet **⚙️ Réglages** → volet **🛡️ Sécurité** → **⚙️ Configurer les Numéros d'Urgence…**. Le texte de l'avertissement de sujet sensible se règle au même endroit.
 
 ### Les jingles
-Onglet **🎵 Sons** → **➕ Ajouter Jingle**, en MP3 ou en vidéo.
+Onglet **🔴 Direct** → bloc **Sons & jingles** → **➕ Ajouter Jingle**, en MP3 ou en vidéo.
 
 ---
 
@@ -224,7 +227,7 @@ Onglet **🎵 Sons** → **➕ Ajouter Jingle**, en MP3 ou en vidéo.
 | « Compte introuvable » | Le pseudo est mal orthographié : corrige-le et reconnecte. |
 | Une question s'épingle toute seule | L'option « épingler automatiquement les questions » est activée dans la config du bot. |
 | Un raccourci ne marche pas | Une autre application utilise peut-être la même touche. Ferme-la ou utilise le bouton dans la régie. |
-| Je veux revenir aux thèmes d'origine | Préférences → Branches → **🔄 Rétablir les 4 branches d'origine** → **💾 Enregistrer**. |
+| Je veux revenir aux thèmes d'origine | ⚙️ Réglages → Branches du live → **🔄 Rétablir les 4 branches d'origine** → **💾 Enregistrer**. |
 
 ---
 
@@ -232,4 +235,4 @@ Onglet **🎵 Sons** → **➕ Ajouter Jingle**, en MP3 ou en vidéo.
 
 - Les scènes et la régie ne fonctionnent **que sur ton PC** (adresse `127.0.0.1`).
 - Les **demandes d'aide** et le **journal** ne sont jamais affichés sur le live, ni envoyés sur GitHub.
-- L'auto-tappeur (Préférences) automatise des tapotements : c'est **contraire aux règles de TikTok**, et ton compte peut être restreint si tu t'en sers.
+- L'auto-tappeur (⚙️ Réglages → Comptes TikTok et auto-tappeur) automatise des tapotements : c'est **contraire aux règles de TikTok**, et ton compte peut être restreint si tu t'en sers.

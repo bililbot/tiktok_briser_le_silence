@@ -754,29 +754,74 @@ fn install_windows_emoji_fonts(ctx: &egui::Context) {
 }
 
 /// Fenêtres de scène ouvertes (titre « STUDIO_LIVE_TIKTOK 9:16 / 16:9 ») avec leur état réduit ou non
-fn stage_windows() -> Vec<(windows::Win32::Foundation::HWND, bool)> {
+fn stage_windows() -> Vec<(windows::Win32::Foundation::HWND, bool, String)> {
     use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextW, IsIconic};
     unsafe extern "system" fn collect(hwnd: HWND, lparam: LPARAM) -> BOOL {
-        let list = &mut *(lparam.0 as *mut Vec<(HWND, bool)>);
+        let list = &mut *(lparam.0 as *mut Vec<(HWND, bool, String)>);
         let mut buf = [0u16; 512];
         let len = GetWindowTextW(hwnd, &mut buf);
-        if len > 0 && String::from_utf16_lossy(&buf[..len as usize]).contains("STUDIO_LIVE_TIKTOK") {
-            list.push((hwnd, IsIconic(hwnd).as_bool()));
+        if len > 0 {
+            let title = String::from_utf16_lossy(&buf[..len as usize]);
+            if title.contains("STUDIO_LIVE_TIKTOK") {
+                list.push((hwnd, IsIconic(hwnd).as_bool(), title));
+            }
         }
         BOOL(1)
     }
-    let mut list: Vec<(HWND, bool)> = Vec::new();
+    let mut list: Vec<(HWND, bool, String)> = Vec::new();
     unsafe {
         let _ = EnumWindows(Some(collect), LPARAM(&mut list as *mut _ as isize));
     }
     list
 }
 
+/// Place la fenêtre de scène dès qu'elle apparaît : Edge ignore --window-size quand il tourne déjà
+/// en arrière-plan et réutilise sa dernière taille (parfois plus grande que l'écran).
+/// Taille calculée sur la zone utile de l'écran (en pixels réels, quelle que soit la mise à l'échelle).
+fn place_stage_window_when_ready(format_label: &'static str) {
+    thread::spawn(move || {
+        use windows::Win32::Foundation::RECT;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            IsZoomed, SetWindowPos, ShowWindow, SystemParametersInfoW, SPI_GETWORKAREA, SW_RESTORE, SWP_NOACTIVATE, SWP_NOZORDER,
+            SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+        };
+        let wanted = format!("STUDIO_LIVE_TIKTOK {}", format_label);
+        for _ in 0..40 {
+            thread::sleep(Duration::from_millis(250));
+            let Some((hwnd, _, _)) = stage_windows().into_iter().find(|(_, _, t)| t.contains(&wanted)) else { continue };
+            let mut work = RECT::default();
+            unsafe {
+                let _ = SystemParametersInfoW(SPI_GETWORKAREA, 0, Some(&mut work as *mut RECT as *mut _), SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0));
+            }
+            let (ww, wh) = ((work.right - work.left) as f32, (work.bottom - work.top) as f32);
+            if ww <= 0.0 || wh <= 0.0 {
+                return;
+            }
+            let (w, h, x, y) = if format_label == "16:9" {
+                // 80 % de la zone utile, en 16:9, en haut à gauche : TikTok LIVE Studio reste visible
+                let w = (ww * 0.8).min(wh * 0.8 * 16.0 / 9.0);
+                (w, w * 9.0 / 16.0, work.left + 30, work.top + 30)
+            } else {
+                // 9:16 sur presque toute la hauteur, à gauche
+                let h = wh * 0.95;
+                (h * 9.0 / 16.0, h, work.left + 20, work.top)
+            };
+            unsafe {
+                if IsZoomed(hwnd).as_bool() {
+                    let _ = ShowWindow(hwnd, SW_RESTORE);
+                }
+                let _ = SetWindowPos(hwnd, None, x, y, w as i32, h as i32, SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+            return;
+        }
+    });
+}
+
 /// Ré-affiche les scènes réduites sans leur donner le focus (TikTok LIVE Studio ne capture pas une fenêtre réduite)
 fn restore_stage_windows() {
     use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
-    for (hwnd, minimized) in stage_windows() {
+    for (hwnd, minimized, _) in stage_windows() {
         if minimized {
             unsafe {
                 let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
@@ -1417,6 +1462,7 @@ impl TelecommandeApp {
                     .arg("--disable-renderer-backgrounding")
                     .arg("--disable-features=CalculateNativeWinOcclusion,IntensiveWakeUpThrottling")
                     .spawn();
+                place_stage_window_when_ready("9:16");
                 return;
             }
         }
@@ -1437,14 +1483,16 @@ impl TelecommandeApp {
                 let _ = Command::new(p)
                     .arg(format!("--app={}", url))
                     // Pas en plein écran : sinon elle recouvre TikTok LIVE Studio, on la réduit,
-                    // et une fenêtre réduite ne peut plus être capturée (elle disparaît de la liste)
-                    .arg("--window-size=1600,900")
-                    .arg("--window-position=160,60")
+                    // et une fenêtre réduite ne peut plus être capturée (elle disparaît de la liste).
+                    // Taille en points : 1280×720 = 1600×900 pixels à 125 %, tient sur un écran 1080p jusqu'à 125 %
+                    .arg("--window-size=1280,720")
+                    .arg("--window-position=60,40")
                     .arg("--disable-background-timer-throttling")
                     .arg("--disable-backgrounding-occluded-windows")
                     .arg("--disable-renderer-backgrounding")
                     .arg("--disable-features=CalculateNativeWinOcclusion,IntensiveWakeUpThrottling")
                     .spawn();
+                place_stage_window_when_ready("16:9");
                 return;
             }
         }
@@ -5646,7 +5694,7 @@ impl eframe::App for TelecommandeApp {
         // Une scène réduite ne peut pas être capturée par TikTok LIVE Studio : on vérifie chaque seconde
         if self.last_stage_check.elapsed() > Duration::from_secs(1) {
             self.last_stage_check = Instant::now();
-            self.stage_minimized = stage_windows().iter().any(|(_, minimized)| *minimized);
+            self.stage_minimized = stage_windows().iter().any(|(_, minimized, _)| *minimized);
         }
 
         egui::CentralPanel::default().frame(panel_frame).show(ctx, |ui| {

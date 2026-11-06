@@ -161,8 +161,104 @@ pub struct HelpAlert {
 
 /// Heure locale Windows au format "HH:MM" (gère l'heure d'été)
 fn local_time_label() -> String {
+    local_datetime().1
+}
+
+/// Date et heure locales Windows : ("AAAA-MM-JJ", "HH:MM")
+fn local_datetime() -> (String, String) {
     let t = unsafe { windows::Win32::System::SystemInformation::GetLocalTime() };
-    format!("{:02}:{:02}", t.wHour, t.wMinute)
+    (
+        format!("{:04}-{:02}-{:02}", t.wYear, t.wMonth, t.wDay),
+        format!("{:02}:{:02}", t.wHour, t.wMinute),
+    )
+}
+
+/// Ligne de la chronologie du journal de live
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct JournalEvent {
+    pub time_label: String,
+    pub text: String,
+}
+
+/// Journal du live en cours : compteurs + chronologie, exporté en Markdown par « Terminer le live »
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct LiveJournal {
+    pub start_ts: f64,
+    pub start_date: String,
+    pub start_time: String,
+    pub help_seq_at_start: u64,
+    pub comments: u64,
+    pub gifts: u64,
+    pub shares: u64,
+    pub follows: u64,
+    pub events: Vec<JournalEvent>,
+}
+
+/// (Re)démarre le journal à l'instant présent
+fn journal_reset(st: &mut FullLiveState) {
+    let (date, time) = local_datetime();
+    st.journal = LiveJournal {
+        start_ts: now_secs(),
+        start_date: date,
+        start_time: time,
+        help_seq_at_start: st.help_alert_seq,
+        ..Default::default()
+    };
+}
+
+fn journal_log(st: &mut FullLiveState, text: String) {
+    st.journal.events.push(JournalEvent { time_label: local_time_label(), text });
+    if st.journal.events.len() > 500 {
+        st.journal.events.remove(0);
+    }
+}
+
+/// Écrit le journal en Markdown dans journaux/ puis repart sur un journal vierge
+fn export_journal(st: &mut FullLiveState) -> Result<PathBuf, String> {
+    let j = &st.journal;
+    let (end_date, end_time) = local_datetime();
+    let mins = ((now_secs() - j.start_ts).max(0.0) / 60.0) as u64;
+    let mut md = format!(
+        "# 📝 Journal du live — {} {}\n\n- **Début** : {} {}\n- **Fin** : {} {}\n- **Durée** : {} h {:02} min\n\n",
+        j.start_date, j.start_time, j.start_date, j.start_time, end_date, end_time, mins / 60, mins % 60
+    );
+    let helps: Vec<&HelpAlert> = st.help_alerts.iter().filter(|a| a.id > j.help_seq_at_start).collect();
+    md.push_str(&format!(
+        "## 📊 Chiffres\n\n| | |\n|:--|--:|\n| Commentaires reçus | {} |\n| Demandes d'aide | {} |\n| Cadeaux | {} |\n| Partages | {} |\n| Follows | {} |\n\n",
+        j.comments, helps.len(), j.gifts, j.shares, j.follows
+    ));
+    md.push_str("## 🕒 Chronologie\n\n");
+    if j.events.is_empty() {
+        md.push_str("_Aucun événement noté._\n");
+    }
+    for e in &j.events {
+        md.push_str(&format!("- **{}** — {}\n", e.time_label, e.text));
+    }
+    let p = &st.poll;
+    if !p.question.trim().is_empty() {
+        md.push_str(&format!("\n## 🗳️ Dernier sondage\n\n**{}**\n\n", p.question));
+        for (c, v) in [(&p.choice1, p.votes1), (&p.choice2, p.votes2), (&p.choice3, p.votes3), (&p.choice4, p.votes4)] {
+            if !c.trim().is_empty() {
+                md.push_str(&format!("- {} : {} vote(s)\n", c, v));
+            }
+        }
+    }
+    md.push_str("\n## 🆘 Demandes d'aide pendant ce live\n\n> Privé — ne pas partager. Pour recontacter les personnes.\n\n");
+    if helps.is_empty() {
+        md.push_str("_Aucune._\n");
+    }
+    for a in &helps {
+        let who = if a.handle.is_empty() { a.author.clone() } else { format!("{} {}", a.author, a.handle) };
+        let status = if a.handled { "✅ traité" } else { "⏳ à traiter" };
+        md.push_str(&format!("- **{}** — {} ({}) : {}\n", a.time_label, who, status, a.text.replace('\n', " ")));
+    }
+
+    let dir = app_path("journaux");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let file = dir.join(format!("live_{}_{}.md", j.start_date, j.start_time.replace(':', "h")));
+    std::fs::write(&file, md).map_err(|e| e.to_string())?;
+    journal_reset(st);
+    Ok(file)
 }
 
 /// Remerciement à afficher sur les scènes (cadeau, partage ou follow reçu via le pont chat)
@@ -432,6 +528,8 @@ pub struct FullLiveState {
     // Remerciements automatiques : les scènes affichent les éléments dont l'id est plus récent que le dernier vu
     // File privée des demandes d'aide (jamais affichée sur les scènes) pour recontacter les personnes après le live
     #[serde(default)]
+    pub journal: LiveJournal,
+    #[serde(default)]
     pub help_alert_seq: u64,
     #[serde(default)]
     pub help_alerts: Vec<HelpAlert>,
@@ -646,6 +744,7 @@ impl Default for FullLiveState {
             timer_end_ts: 0.0,
             timer_remaining_secs: 0.0,
             timer_gong_done: false,
+            journal: LiveJournal::default(),
             help_alert_seq: 0,
             help_alerts: Vec::new(),
             thanks_enabled: true,
@@ -857,6 +956,7 @@ struct TelecommandeApp {
     article_input_url: String,
     article_scrape_status: Arc<Mutex<String>>,
     video_input_yt_url: String,
+    journal_status: String,
 }
 
 impl TelecommandeApp {
@@ -881,6 +981,7 @@ impl TelecommandeApp {
             article_input_url: String::new(),
             article_scrape_status: Arc::new(Mutex::new(String::new())),
             video_input_yt_url: String::new(),
+            journal_status: String::new(),
         };
         app.load_library();
         app.load_emergency_numbers();
@@ -2267,6 +2368,51 @@ impl TelecommandeApp {
         }
     }
 
+    /// Journal du live : résumé en cours + export Markdown dans journaux/ (« Terminer le live »)
+    fn render_journal_controls(&mut self, ui: &mut egui::Ui) {
+        let (start, comments, events) = self
+            .state
+            .lock()
+            .map(|st| (format!("{} {}", st.journal.start_date, st.journal.start_time), st.journal.comments, st.journal.events.len()))
+            .unwrap_or_default();
+        egui::Frame::group(ui.style())
+            .fill(Color32::from_rgb(20, 22, 30))
+            .stroke(Stroke::new(1.2_f32, Color32::from_rgb(56, 189, 248)))
+            .rounding(Rounding::same(8.0))
+            .inner_margin(egui::Margin::same(10.0))
+            .show(ui, |ui| {
+                ui.label(RichText::new("📝 JOURNAL DU LIVE").strong().color(Color32::from_rgb(125, 211, 252)));
+                ui.label(
+                    RichText::new(format!("Depuis {} • {} commentaires • {} événements notés", start, comments, events))
+                        .size(10.5)
+                        .color(Color32::GRAY),
+                );
+                ui.horizontal(|ui| {
+                    let btn = egui::Button::new(RichText::new("🏁 Terminer le live & enregistrer le journal").strong().color(Color32::WHITE))
+                        .fill(Color32::from_rgb(3, 105, 161));
+                    if ui.add(btn).clicked() {
+                        let result = self.state.lock().map_err(|e| e.to_string()).and_then(|mut st| {
+                            let r = export_journal(&mut st);
+                            save_state_json(&st);
+                            r
+                        });
+                        self.journal_status = match result {
+                            Ok(path) => format!("✅ Enregistré : {}", path.display()),
+                            Err(e) => format!("❌ Échec de l'enregistrement : {}", e),
+                        };
+                    }
+                    if ui.button("📂 Dossier").on_hover_text("Ouvrir le dossier des journaux").clicked() {
+                        let dir = app_path("journaux");
+                        let _ = std::fs::create_dir_all(&dir);
+                        let _ = Command::new("explorer").arg(&dir).spawn();
+                    }
+                });
+                if !self.journal_status.is_empty() {
+                    ui.label(RichText::new(&self.journal_status).size(10.5));
+                }
+            });
+    }
+
     /// File privée des demandes d'aide : pseudo, heure, message, copie du pseudo et marquage « traité »
     fn render_help_alerts(&mut self, ui: &mut egui::Ui) {
         let alerts = self.state.lock().map(|st| st.help_alerts.clone()).unwrap_or_default();
@@ -2367,6 +2513,8 @@ impl TelecommandeApp {
                 self.render_thanks_controls(ui);
                 ui.add_space(8.0);
                 self.render_help_alerts(ui);
+                ui.add_space(8.0);
+                self.render_journal_controls(ui);
                 ui.add_space(8.0);
 
                 // =========================================================
@@ -5211,10 +5359,15 @@ fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveSt
                             st.chat_status = s.to_string();
                         }
                     } else if ev_type == "gift" || ev_type == "share" || ev_type == "follow" {
+                        let count = val.get("count").and_then(|v| v.as_u64()).unwrap_or(1).max(1) as u32;
+                        match ev_type {
+                            "gift" => st.journal.gifts += count as u64,
+                            "share" => st.journal.shares += 1,
+                            _ => st.journal.follows += 1,
+                        }
                         if st.thanks_enabled && !st.shield_active {
                             let author = val.get("author").and_then(|v| v.as_str()).unwrap_or("Spectateur").to_string();
                             let gift = val.get("gift").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                            let count = val.get("count").and_then(|v| v.as_u64()).unwrap_or(1).max(1) as u32;
                             push_thanks(&mut st, ev_type, author, gift, count);
                         }
                     } else if ev_type == "comment" {
@@ -5224,6 +5377,7 @@ fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveSt
                         let avatar = val.get("avatar").and_then(|v| v.as_str()).unwrap_or("").to_string();
                         let is_question = text.contains('?');
                         let shield = st.shield_active;
+                        st.journal.comments += 1;
 
                         let lower = text.to_lowercase();
 
@@ -5401,8 +5555,10 @@ fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveSt
                 let mut st = state.lock().unwrap();
                 // La file des demandes d'aide reste privée à la régie : retirée le temps de sérialiser
                 let alerts = std::mem::take(&mut st.help_alerts);
+                let journal = std::mem::take(&mut st.journal);
                 let bytes = serde_json::to_vec(&*st).unwrap_or_default();
                 st.help_alerts = alerts;
+                st.journal = journal;
                 bytes
             };
             let ct = Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap();
@@ -5850,6 +6006,76 @@ fn main() -> eframe::Result<()> {
                 }
             }
             previously_down = down;
+        }
+    });
+
+    // Journal du live : un seul observateur compare l'état toutes les 500 ms et note les changements
+    // (branche, bouclier, chrono, épingle, sondage, demandes d'aide) sans toucher aux autres modules
+    let state_journal = Arc::clone(&state);
+    thread::spawn(move || {
+        let snapshot = |st: &FullLiveState| {
+            (
+                st.branch.clone(),
+                st.shield_active,
+                st.timer_active && st.timer_running,
+                st.timer_end_ts,
+                if st.pinned_visible { st.pinned_text.clone() } else { String::new() },
+                st.poll.active,
+                st.help_alert_seq,
+            )
+        };
+        let mut prev = {
+            let mut st = state_journal.lock().unwrap();
+            if st.journal.start_ts == 0.0 {
+                journal_reset(&mut st);
+            }
+            snapshot(&st)
+        };
+        loop {
+            thread::sleep(Duration::from_millis(500));
+            let Ok(mut st) = state_journal.lock() else { continue };
+            let cur = snapshot(&st);
+            if cur == prev {
+                continue;
+            }
+            if cur.0 != prev.0 {
+                let line = format!("Branche → **{}** ({})", cur.0, st.custom_topic);
+                journal_log(&mut st, line);
+            }
+            if cur.1 != prev.1 {
+                journal_log(&mut st, if cur.1 { "🛡️ Bouclier anti-raid **activé**".into() } else { "🛡️ Bouclier levé".into() });
+            }
+            // Nouveau chrono lancé (pas une reprise après pause) : l'heure de fin change et le restant = durée totale
+            let fresh_start = (st.timer_end_ts - now_secs() - st.timer_total_secs as f64).abs() < 2.0;
+            if cur.2 && cur.3 != prev.3 && fresh_start {
+                let who = if st.timer_label.is_empty() { "temps de parole".to_string() } else { st.timer_label.clone() };
+                let line = format!("⏱️ Chrono {} min — {}", (st.timer_total_secs + 30) / 60, who);
+                journal_log(&mut st, line);
+            }
+            if !cur.4.is_empty() && cur.4 != prev.4 {
+                let author = st.pinned_author.clone();
+                journal_log(&mut st, format!("📌 Épinglé ({}) : « {} »", author, cur.4));
+            }
+            if cur.5 != prev.5 {
+                let p = st.poll.clone();
+                if cur.5 {
+                    journal_log(&mut st, format!("🗳️ Sondage lancé : « {} »", p.question));
+                } else {
+                    journal_log(
+                        &mut st,
+                        format!(
+                            "🗳️ Sondage terminé : « {} » — {} {} / {} {} / {} {} / {} {}",
+                            p.question, p.choice1, p.votes1, p.choice2, p.votes2, p.choice3, p.votes3, p.choice4, p.votes4
+                        ),
+                    );
+                }
+            }
+            if cur.6 > prev.6 {
+                let n = cur.6 - prev.6;
+                journal_log(&mut st, format!("🆘 {} nouvelle(s) demande(s) d'aide (détails en fin de journal)", n));
+            }
+            save_state_json(&st);
+            prev = cur;
         }
     });
 

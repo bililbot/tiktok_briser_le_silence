@@ -23,5 +23,8 @@ check_steps*.py
 __pycache__/
 *.pyc
 
+# Journaux de live (contiennent les demandes d'aide : privés)
+journaux/
+
 # Vidéos locales (trop lourdes pour Git)
 videos/

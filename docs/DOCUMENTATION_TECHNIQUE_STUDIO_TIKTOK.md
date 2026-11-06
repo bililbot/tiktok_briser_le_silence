@@ -189,6 +189,28 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 
 ---
 
+## 📝 Journal du Live
+
+* **Ce qui est noté** :
+  * des compteurs (`journal.comments`, `gifts` en nombre total de cadeaux, `shares`, `follows`), incrémentés à la réception dans `/chat_ingest` ;
+  * une chronologie horodatée, tenue par **un seul thread observateur** : toutes les 500 ms, il compare l'état à la photo précédente et note les changements de branche, l'activation et la levée du bouclier, les lancements de chrono, les messages épinglés, le lancement et la fin des sondages (avec les votes) et les nouvelles demandes d'aide.
+  * Une épingle affichée moins de 500 ms peut ne pas être notée.
+* **Régie** : bloc « 📝 JOURNAL DU LIVE » dans l'onglet **[ Régie ]**.
+  * Il affiche l'heure de début et les chiffres en cours.
+  * Le bouton **🏁 Terminer le live & enregistrer le journal** écrit `journaux/live_AAAA-MM-JJ_HHhMM.md` puis repart sur un journal vierge.
+  * Le bouton **📂 Dossier** ouvre le dossier des journaux.
+* **Contenu du fichier** :
+  * début, fin et durée ;
+  * un tableau des chiffres ;
+  * la chronologie ;
+  * le dernier sondage ;
+  * la liste des demandes d'aide **de ce live**, avec leur statut traité / à traiter.
+* **Confidentialité** :
+  * le journal est retiré de `/state`, comme les demandes d'aide ;
+  * le dossier `journaux/` est exclu de Git (`.gitignore`), puisqu'il contient les demandes d'aide.
+
+---
+
 ## 🆘 File Privée des Demandes d'Aide
 
 * **Détection** : tout commentaire contenant un mot-clé d'un déclencheur `emergency` actif (`bot_config.json`, par exemple « aide, urgence, 119, 3919 ») est ajouté à `help_alerts` avec l'heure locale, le pseudo, le @handle et le texte.

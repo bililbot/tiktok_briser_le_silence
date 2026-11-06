@@ -227,6 +227,25 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 
 ---
 
+## 🔌 Pont Chat TikTok & Reconnexion Automatique
+
+* **Lancement** : depuis la régie, avec `python <dossier du studio>/tiktok_chat_bridge.py <pseudo>`.
+  * Le pont est lancé dans le dossier du studio, sans fenêtre.
+  * La régie garde la main sur le processus : un nouveau clic sur « Connecter » **arrête l'ancien pont** avant d'en lancer un neuf, ce qui évite les commentaires en double.
+  * La fermeture de la régie arrête aussi le pont.
+* **Reconnexion** : à chaque tentative, le pont crée un client TikTokLive neuf.
+
+| Situation | Comportement |
+| :--- | :--- |
+| Live ou réseau coupé | Nouvelle tentative après 5, 10, 20, 40, puis 60 s. Une connexion qui a tenu remet le délai à 5 s. |
+| Compte pas (encore) en live | Nouvelle vérification toutes les 30 s (n'augmente pas le délai réseau) |
+| Pseudo introuvable (`UserNotFoundError`) | Arrêt, avec un message dans la régie |
+| Régie injoignable pendant 90 s | Arrêt du pont (évite les processus orphelins) |
+
+* **Suivi** : le décompte « nouvelle tentative dans N s » s'affiche dans le statut du chat de la régie.
+
+---
+
 ## 💜 Remerciements Automatiques (Cadeaux, Partages, Follows)
 
 * **Pont chat** (`tiktok_chat_bridge.py`, TikTokLive 7.x) : il envoie à `POST /chat_ingest` des événements :

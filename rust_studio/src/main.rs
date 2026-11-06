@@ -957,6 +957,7 @@ struct TelecommandeApp {
     article_scrape_status: Arc<Mutex<String>>,
     video_input_yt_url: String,
     journal_status: String,
+    chat_bridge: Option<std::process::Child>,
 }
 
 impl TelecommandeApp {
@@ -982,6 +983,7 @@ impl TelecommandeApp {
             article_scrape_status: Arc::new(Mutex::new(String::new())),
             video_input_yt_url: String::new(),
             journal_status: String::new(),
+            chat_bridge: None,
         };
         app.load_library();
         app.load_emergency_numbers();
@@ -1075,10 +1077,29 @@ impl TelecommandeApp {
             st.chat_status = "⏳ Lancement du pont TikTok Live...".to_string();
             st.chat_handle.clone()
         };
-        let _ = Command::new("python")
+        // Un seul pont à la fois : sinon chaque commentaire arriverait en double
+        self.stop_tiktok_chat_bridge();
+        let spawned = Command::new("python")
             .creation_flags(CREATE_NO_WINDOW)
-            .args(["tiktok_chat_bridge.py", &handle])
+            .current_dir(get_app_dir())
+            .arg(app_path("tiktok_chat_bridge.py"))
+            .arg(&handle)
             .spawn();
+        match spawned {
+            Ok(child) => self.chat_bridge = Some(child),
+            Err(e) => {
+                if let Ok(mut st) = self.state.lock() {
+                    st.chat_status = format!("❌ Python introuvable ou erreur au lancement : {}", e);
+                }
+            }
+        }
+    }
+
+    fn stop_tiktok_chat_bridge(&mut self) {
+        if let Some(mut child) = self.chat_bridge.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
     }
 
     fn load_emergency_numbers(&mut self) {
@@ -5234,6 +5255,7 @@ impl TelecommandeApp {
 
 impl eframe::App for TelecommandeApp {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.stop_tiktok_chat_bridge();
         flush_state_json();
     }
 

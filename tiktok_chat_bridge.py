@@ -2,18 +2,30 @@
 """
 Pont de réception temps réel des commentaires TikTok LIVE -> Télécommande Rust (127.0.0.1:8765)
 Usage : python tiktok_chat_bridge.py <pseudo_ou_url>
+
+Reconnexion automatique :
+- coupure du live / du réseau : nouvelle tentative après 5, 10, 20, 40 puis 60 s
+- compte pas (encore) en live : nouvelle vérification toutes les 30 s
+- pseudo introuvable : arrêt (inutile de réessayer)
+- régie fermée (plus de réponse pendant 90 s) : arrêt du pont
 """
 
 import sys
 import json
 import time
 import urllib.request
-import urllib.parse
 import re
 
 RUST_SERVER = "http://127.0.0.1:8765"
+RETRY_DELAYS = [5, 10, 20, 40, 60]
+OFFLINE_DELAY = 30
+REGIE_TIMEOUT = 90
 
-def send_event_to_rust(payload: dict):
+last_regie_ok = time.time()
+
+
+def send_event_to_rust(payload: dict) -> bool:
+    global last_regie_ok
     try:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         req = urllib.request.Request(
@@ -24,11 +36,19 @@ def send_event_to_rust(payload: dict):
         )
         with urllib.request.urlopen(req, timeout=1.5) as _:
             pass
+        last_regie_ok = time.time()
+        return True
     except Exception:
-        pass
+        return False
+
 
 def set_bridge_status(status: str):
     send_event_to_rust({"type": "status", "status": status})
+
+
+def regie_is_gone() -> bool:
+    return time.time() - last_regie_ok > REGIE_TIMEOUT
+
 
 def resolve_unique_id(raw_input: str) -> str:
     s = raw_input.strip()
@@ -42,26 +62,29 @@ def resolve_unique_id(raw_input: str) -> str:
         s = s[1:].strip()
     return s
 
-def main():
-    if len(sys.argv) < 2:
-        set_bridge_status("❌ Pseudo manquant")
-        return
 
-    raw_target = sys.argv[1]
-    unique_id = resolve_unique_id(raw_target)
-    set_bridge_status(f"⏳ Connexion au Live de @{unique_id}...")
-
+def user_payload(user) -> dict:
+    nick = getattr(user, "nickname", "") or getattr(user, "unique_id", "") or "Spectateur"
+    uid = getattr(user, "unique_id", "")
+    avatar_url = ""
     try:
-        from TikTokLive import TikTokLiveClient
-        from TikTokLive.events import ConnectEvent, CommentEvent, DisconnectEvent, GiftEvent, ShareEvent, FollowEvent
-    except ImportError:
-        set_bridge_status("❌ Module TikTokLive non installé (pip install TikTokLive)")
-        return
+        if user.avatar_thumb and user.avatar_thumb.m_urls:
+            avatar_url = user.avatar_thumb.m_urls[0]
+    except Exception:
+        avatar_url = ""
+    return {"author": nick, "handle": f"@{uid}" if uid else "", "avatar": avatar_url}
+
+
+def build_client(unique_id: str, session: dict):
+    """Crée un client TikTokLive neuf (un client déconnecté ne se réutilise pas) avec tous les handlers."""
+    from TikTokLive import TikTokLiveClient
+    from TikTokLive.events import ConnectEvent, CommentEvent, DisconnectEvent, GiftEvent, ShareEvent, FollowEvent
 
     client = TikTokLiveClient(unique_id=f"@{unique_id}")
 
     @client.on(ConnectEvent)
     async def on_connect(event: ConnectEvent):
+        session["connected"] = True
         set_bridge_status(f"🟢 Connecté en direct au Live (@{client.unique_id}) !")
 
     @client.on(DisconnectEvent)
@@ -71,38 +94,13 @@ def main():
     @client.on(CommentEvent)
     async def on_comment(event: CommentEvent):
         try:
-            user_nick = getattr(event.user, "nickname", "") or getattr(event.user, "unique_id", "Spectateur")
-            user_id = getattr(event.user, "unique_id", "")
-            avatar_url = ""
-            try:
-                if hasattr(event.user, "avatar_thumb") and event.user.avatar_thumb and event.user.avatar_thumb.m_urls:
-                    avatar_url = event.user.avatar_thumb.m_urls[0]
-            except Exception:
-                avatar_url = ""
-
             comment_text = getattr(event, "comment", "") or ""
             if comment_text.strip():
-                send_event_to_rust({
-                    "type": "comment",
-                    "author": user_nick,
-                    "handle": f"@{user_id}" if user_id else "",
-                    "text": comment_text.strip(),
-                    "avatar": avatar_url,
-                    "timestamp": int(time.time())
-                })
+                payload = user_payload(event.user)
+                payload.update({"type": "comment", "text": comment_text.strip(), "timestamp": int(time.time())})
+                send_event_to_rust(payload)
         except Exception:
             pass
-
-    def user_payload(user) -> dict:
-        nick = getattr(user, "nickname", "") or getattr(user, "unique_id", "") or "Spectateur"
-        uid = getattr(user, "unique_id", "")
-        avatar_url = ""
-        try:
-            if user.avatar_thumb and user.avatar_thumb.m_urls:
-                avatar_url = user.avatar_thumb.m_urls[0]
-        except Exception:
-            avatar_url = ""
-        return {"author": nick, "handle": f"@{uid}" if uid else "", "avatar": avatar_url}
 
     @client.on(GiftEvent)
     async def on_gift(event: GiftEvent):
@@ -138,14 +136,67 @@ def main():
         except Exception:
             pass
 
+    return client
+
+
+def wait_before_retry(delay: int, message: str) -> bool:
+    """Décompte affiché dans la régie. Retourne False si la régie a disparu entre-temps."""
+    for remaining in range(delay, 0, -1):
+        if remaining == delay or remaining % 5 == 0:
+            set_bridge_status(f"{message} — nouvelle tentative dans {remaining} s")
+        if regie_is_gone():
+            return False
+        time.sleep(1)
+    return True
+
+
+def main():
+    if len(sys.argv) < 2:
+        set_bridge_status("❌ Pseudo manquant")
+        return
+
+    unique_id = resolve_unique_id(sys.argv[1])
+
     try:
-        client.run()
-    except Exception as e:
-        err_msg = str(e)
-        if "LIVE_NOT_FOUND" in err_msg or "offline" in err_msg.lower() or "not live" in err_msg.lower():
-            set_bridge_status(f"⚪ @{unique_id} n'est pas en Live actuellement (ou vérifie l'@identifiant exact)")
-        else:
-            set_bridge_status(f"⚠️ Info connexion (@{unique_id}) : {err_msg[:90]}")
+        from TikTokLive.client.errors import UserOfflineError, UserNotFoundError
+    except ImportError:
+        set_bridge_status("❌ Module TikTokLive non installé (pip install TikTokLive)")
+        return
+
+    failures = 0
+    while not regie_is_gone():
+        set_bridge_status(f"⏳ Connexion au Live de @{unique_id}...")
+        session = {"connected": False}
+        try:
+            build_client(unique_id, session).run()
+            reason = "🟠 Live coupé"
+            delay = None
+        except UserNotFoundError:
+            set_bridge_status(f"❌ Compte @{unique_id} introuvable — vérifie l'identifiant exact")
+            return
+        except UserOfflineError:
+            reason = f"⚪ @{unique_id} n'est pas en Live"
+            delay = OFFLINE_DELAY
+        except Exception as e:
+            err_msg = str(e)
+            if "LIVE_NOT_FOUND" in err_msg or "offline" in err_msg.lower() or "not live" in err_msg.lower():
+                reason = f"⚪ @{unique_id} n'est pas en Live"
+                delay = OFFLINE_DELAY
+            else:
+                reason = f"⚠️ Connexion perdue ({err_msg[:60]})"
+                delay = None
+
+        # Une connexion qui a vraiment tenu remet le compteur d'échecs à zéro ;
+        # « pas en live » a son propre délai fixe et ne compte pas comme un échec réseau
+        if session["connected"]:
+            failures = 0
+        elif delay is None:
+            failures += 1
+        if delay is None:
+            delay = RETRY_DELAYS[min(max(failures - 1, 0), len(RETRY_DELAYS) - 1)]
+        if not wait_before_retry(delay, reason):
+            break
+
 
 if __name__ == "__main__":
     main()

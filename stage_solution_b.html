@@ -860,6 +860,7 @@
             font-style: italic;
         }
     </style>
+    <script src="http://127.0.0.1:8765/subs.js"></script>
 </head>
 <body>
 
@@ -944,6 +945,18 @@
             <div class="resize-handle handle-e" data-target="videoWidget" data-dir="e" title="Largeur (Droite / Gauche)"></div>
             <div class="resize-handle handle-s" data-target="videoWidget" data-dir="s" title="Hauteur (Haut / Bas)"></div>
             <div class="resize-handle handle-w" data-target="videoWidget" data-dir="w" title="Largeur (Gauche / Droite)"></div>
+        </div>
+
+        <!-- 4bis. SOUS-TITRES DE LA VIDÉO (logique dans stage_subtitles.js) -->
+        <div class="draggable-widget" id="subtitleWidget">
+            <div class="subs-card">
+                <div class="subs-listening" id="subsListening"></div>
+                <div class="subs-text empty" id="subsText"></div>
+            </div>
+            <div class="resize-handle handle-se" data-target="subtitleWidget" data-dir="se" title="Diagonale (Largeur & Hauteur)"></div>
+            <div class="resize-handle handle-e" data-target="subtitleWidget" data-dir="e" title="Largeur (Droite / Gauche)"></div>
+            <div class="resize-handle handle-s" data-target="subtitleWidget" data-dir="s" title="Hauteur (Haut / Bas)"></div>
+            <div class="resize-handle handle-w" data-target="subtitleWidget" data-dir="w" title="Largeur (Gauche / Droite)"></div>
         </div>
 
         <!-- 5. PETITE BARRE D'INFOS TOUT EN BAS -->
@@ -1057,7 +1070,7 @@
     </div>
 
     <script>
-        const WIDGET_IDS = ["emergencyWidget", "musicWidget", "videoWidget", "articleWidget", "footerWidget", "twWidget", "pinnedCommentWidget", "customBoxWidget", "songVoteWidget", "likeGoalWidget"];
+        const WIDGET_IDS = ["emergencyWidget", "musicWidget", "videoWidget", "subtitleWidget", "articleWidget", "footerWidget", "twWidget", "pinnedCommentWidget", "customBoxWidget", "songVoteWidget", "likeGoalWidget"];
         let activeDragEl = null;
         let activeResizeEl = null;
         let startX = 0, startY = 0, startLeft = 0, startTop = 0, startWidth = 0;
@@ -1128,6 +1141,8 @@
             m.style.left = "3%"; m.style.top = "68%"; m.style.width = "94%";
             const v = document.getElementById("videoWidget");
             v.style.left = "25%"; v.style.top = "42%"; v.style.width = "50%";
+            const sb = document.getElementById("subtitleWidget");
+            sb.style.left = "4%"; sb.style.top = "64%"; sb.style.width = "92%";
             const f = document.getElementById("footerWidget");
             f.style.left = "3%"; f.style.top = "auto"; f.style.bottom = "14px"; f.style.width = "94%";
             f.style.display = "block";
@@ -1719,6 +1734,7 @@
                 if (typeof setTimerState === "function") setTimerState(st);
                 if (typeof queueThanks === "function") queueThanks(st);
                 if (typeof applyAdaptive === "function") applyAdaptive(st);
+                if (typeof updateSubtitles === "function") updateSubtitles(st);
                 if (st.pinned_visible && st.pinned_text) {
                     document.getElementById("pinnedAuthorDisplay").textContent = st.pinned_author || "Spectateur";
                     const msgEl = document.getElementById("pinnedMsgDisplay");
@@ -1876,7 +1892,14 @@
 
                 if (st.video_cmd_id && st.video_cmd_id > lastVideoCmdId) {
                     lastVideoCmdId = st.video_cmd_id;
-                    if (st.video_cmd_action === "toggle_play") {
+                    if (st.video_source_type === "youtube" && typeof ytCommand === "function") {
+                        // Lecteur YouTube : commandes par l'API de l'iframe
+                        const t = ytCurrentTime();
+                        if (st.video_cmd_action === "toggle_play") ytCommand(ytIsPlaying() ? "pauseVideo" : "playVideo");
+                        else if (st.video_cmd_action === "seek_back") ytCommand("seekTo", [Math.max(0, t - 10), true]);
+                        else if (st.video_cmd_action === "seek_fwd") ytCommand("seekTo", [t + 10, true]);
+                        else if (st.video_cmd_action === "restart") { ytCommand("seekTo", [0, true]); ytCommand("playVideo"); }
+                    } else if (st.video_cmd_action === "toggle_play") {
                         if (vidPlayer.paused) vidPlayer.play().catch(() => {});
                         else vidPlayer.pause();
                     } else if (st.video_cmd_action === "seek_back") {

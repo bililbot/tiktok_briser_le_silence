@@ -21,6 +21,10 @@
   ```
   pip install TikTokLive
   ```
+- pour les **sous-titres des vidéos YouTube**, une seule fois aussi :
+  ```
+  python -m pip install youtube-transcript-api
+  ```
 
 **Lancer Live Régie** : double-clique sur le raccourci **Live Régie** (avec le logo) dans le dossier du projet.
 - Pour l'avoir aussi sur le Bureau, lance une fois `tools\creer_raccourci.ps1 -Bureau` (clic droit → *Exécuter avec PowerShell*).
@@ -163,6 +167,20 @@ Quand quelqu'un écrit un mot comme « aide », « 119 », « 3919 » ou « urge
 ### Sons, vidéos, articles, sondages
 - **Sons** : onglet **🔴 Direct**, bloc **Sons & jingles**. **F1** lance la sirène.
 - **Vidéo** : onglet **🖼️ Contenus**. Colle un lien YouTube ou choisis une vidéo de ton PC. **F12** l'affiche ou la masque.
+
+### Sous-titres des vidéos
+Onglet **🖼️ Contenus**, sous le bouton d'affichage de la vidéo, choisis l'**affichage** :
+- **🎬 Vidéo seule** : comme avant ;
+- **🎬 Vidéo + sous-titres** : la vidéo, et un encart de sous-titres en gros caractères ;
+- **🔊 Son + sous-titres** : l'image de la vidéo disparaît du live, le son continue, et l'encart affiche les sous-titres avec « 🔊 En écoute ». Pratique pour un témoignage dont tu ne veux pas montrer l'image.
+
+D'où viennent les sous-titres :
+- **Vidéo YouTube** : récupérés automatiquement. **Langue** : « fr » par défaut ; tu peux en mettre plusieurs par ordre de préférence (« fr,en »). Sans sous-titres dans ta langue, ceux de la langue parlée dans la vidéo sont utilisés.
+- **Vidéo de ton PC** : pose un fichier de sous-titres **du même nom** à côté de la vidéo (`temoignage.mp4` + `temoignage.srt`, ou `.vtt`).
+
+Le **témoin** sous ces réglages dit, dès que tu choisis la vidéo, si des sous-titres ont été trouvés (✅), s'il n'y en a pas (⚪) ou si YouTube a refusé la demande (❌, réessaie un peu plus tard).
+
+L'encart des sous-titres se **déplace et s'étire** comme les autres : le texte grandit avec sa largeur. Réglage **Taille** en plus. Les boutons lecture, pause et ±10 s de la régie marchent maintenant aussi pour les vidéos YouTube.
 - **Article** : onglet **🖼️ Contenus**, volet **Revue de presse**. Colle le lien, clique **🪄 Extraire**, puis ouvre la fenêtre dédiée.
 - **Sondage** : onglet **👥 Public**. Écris la question et les choix ; les spectateurs votent en tapant `!1`, `!2`, `!3` ou `!4`.
 - **Encart d'annonce** : onglet **🖼️ Contenus**, bloc **Annonce**. Écris ton message, et **F4** l'affiche ou le masque.

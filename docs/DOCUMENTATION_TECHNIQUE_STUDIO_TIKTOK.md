@@ -79,6 +79,8 @@ graph TD
 | `GET /assets/...` | Images (PNG, WEBP, GIF, sinon `image/jpeg`) |
 | `GET /video_stream` | Vidéo locale active, par blocs `206 Partial Content` |
 | `GET /jingle_stream` | Fichier audio du jingle en cours |
+| `GET /subs_data` | Sous-titres de la vidéo en cours `{id, cues: [[début_s, fin_s, texte], …]}` (hors de `/state`, lu 4 fois par seconde) |
+| `GET /subs.js` | Script commun des sous-titres (`stage_subtitles.js`) chargé par les deux scènes |
 | `POST /layout_save` | Mise en page d'une scène `{format, layout}` (format `9_16` ou `16_9`) (64 Ko max), stockée dans `stage_layouts` |
 | `POST /chat_ingest` | Réception des événements du pont chat (`status`, `comment`, `gift`, `share`, `follow`) |
 
@@ -166,6 +168,24 @@ Le lecteur YouTube des overlays (`stage_solution_b.html` et `stage_16_9.html`) :
 * **Filtre « Anti-détection »** (`video_anti_detect`) : couche CSS de recadrage/zoom (`#antiDetectOverlay`).
 
 > ⚠️ Diffuser une vidéo dont on n'a pas les droits reste une infraction aux règles TikTok, que le filtre soit actif ou non.
+
+* **Commandes** (`video_cmd_action` : lecture / pause, ±10 s, recommencer) : pour une vidéo YouTube, elles sont envoyées à l'iframe par `postMessage` (`{"event":"command","func":"pauseVideo"|"playVideo"|"seekTo"}`) ; pour un fichier, au `<video>`.
+
+### Sous-titres des vidéos (2.4.0)
+
+* **État** (`FullLiveState`) :
+  * `video_display_mode` : `video` (vidéo seule), `video_subs` (vidéo + encart des sous-titres), `audio_subs` (son + sous-titres : `#videoWidget.audio-only` passe en `opacity: 0`, la vidéo continue de jouer) ;
+  * `subtitles_lang` (« fr », ou « fr,en » par ordre de préférence), `subtitles_scale_pct` (50 à 250 %) ;
+  * `subtitles_id` : incrémenté à chaque chargement, les scènes relisent alors `/subs_data` ;
+  * `subtitle_cues` et `subtitles_status` (témoin de la régie) sont en `#[serde(skip)]` : ni dans `/state`, ni dans `live_state.json`.
+* **Chargement** (`spawn_subtitles_watcher`, tâche de fond, toutes les 0,8 s) : dès que la vidéo choisie change (clé `yt:<id>|<langues>` ou `file:<chemin>`, calculée par `subtitles_source()`), les sous-titres sont cherchés, même si la vidéo n'est pas encore affichée, pour que le témoin renseigne avant la diffusion. Un résultat arrivé après un nouveau changement de vidéo est ignoré.
+  * **YouTube** : `tools_python/youtube_subtitles.py <id> <langues>` (module `youtube-transcript-api`, sans clé Google). Ordre : manuels dans une langue préférée, automatiques dans une langue préférée, traduction automatique YouTube (souvent refusée : `IpBlocked`), puis automatiques dans la langue parlée, anglais, autres. Les chevauchements des sous-titres automatiques sont supprimés (fin ramenée au début de la ligne suivante).
+  * **Fichiers** : `<nom>.srt`, `<nom>.vtt`, `<nom>.fr.srt` ou `<nom>.fr.vtt` à côté de la vidéo, lus par `parse_srt_vtt()` (UTF-8 avec ou sans BOM, sinon Windows-1252 ; balises `<i>`, `{\an8}`… retirées ; tests `subtitle_tests`).
+* **Scènes** (`stage_subtitles.js`, chargé par `/subs.js`) :
+  * injecte le style de `#subtitleWidget` (déplaçable et étirable, enregistré dans la mise en page) ; la taille du texte suit la largeur de l'encart (`3.4cqw × --subs-scale`) ;
+  * position de lecture : `localVideoPlayer.currentTime`, ou pour YouTube les messages `infoDelivery` (`currentTime`, `playerState`) de l'iframe, obtenus en lui envoyant `{"event":"listening"}` (renvoyé tant qu'aucun message n'arrive depuis 3 s) et extrapolés entre deux messages ;
+  * affichage toutes les 120 ms, recherche dichotomique de la ligne ; entre deux phrases l'encart s'efface (`.idle`), sauf en mode `audio_subs` où « 🔊 En écoute : titre » reste affiché ;
+  * expose `ytCommand()`, `ytIsPlaying()`, `ytCurrentTime()` aux scènes.
 
 ---
 
@@ -384,6 +404,7 @@ Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).
    * Les fenêtres capturables (scènes, presse, urgences) sont lancées par `spawn_capture_window()` dans un **Edge dédié** (`--user-data-dir=edge_scene_profile`). Sans profil séparé, un Edge déjà lancé en arrière-plan (démarrage rapide, `--no-startup-window`) ignore `--disable-renderer-backgrounding`, `--disable-features=CalculateNativeWinOcclusion`, etc. : la page cachée derrière TikTok se met en veille et ne se met plus à jour.
    * Une fenêtre réduite ne peut pas être capturée. `stage_windows()` (`EnumWindows` + `IsIconic`) est vérifiée chaque seconde : si une scène est réduite, la régie affiche un bandeau, et le bouton « Afficher la scène » appelle `restore_stage_windows()` (`SW_SHOWNOACTIVATE`).
 6. **Chat TikTok** : le pont `tiktok_chat_bridge.py <pseudo>` nécessite `pip install TikTokLive` (7.x).
+7. **Sous-titres YouTube** : `python -m pip install youtube-transcript-api` (testé avec la 1.2.5). Si YouTube change son fonctionnement, `python -m pip install -U youtube-transcript-api`.
 
 **Méthode de test sans fermer la régie de production** : impossible, à cause du mutex d'instance unique et du port 8765. Il faut fermer la régie avant de lancer une version de test. Avant chaque test, sauvegarder `live_state.json` et `studio_preferences.json`.
 

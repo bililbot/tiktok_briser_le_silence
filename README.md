@@ -23,6 +23,6 @@
 
 1. Double-clique sur le raccourci **Live Régie** (sinon, `Lancer_Studio_TikTok.bat`).
 2. Dans TikTok LIVE Studio, ajoute la scène `http://127.0.0.1:8765/stage` (9:16) ou `http://127.0.0.1:8765/stage_16_9` (16:9).
-3. Pour le chat : `pip install TikTokLive` (une seule fois), puis **⚡ Connecter au Live** dans l'onglet *Sondages & Chat*.
+3. Pour le chat : `pip install TikTokLive` (une seule fois ; et `python -m pip install youtube-transcript-api` pour les sous-titres des vidéos YouTube), puis **⚡ Connecter au Live** dans l'onglet *Sondages & Chat*.
 
 Windows 10/11 • Rust (egui) • HTML/JS • Python

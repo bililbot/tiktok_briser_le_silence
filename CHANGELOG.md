@@ -11,6 +11,21 @@ Chaque version est marquée par un tag Git (`v2.1.0`…), ce qui permet d'y reve
 
 ---
 
+## [2.4.0] — 2026-11-06
+
+### Sous-titres des vidéos
+- **Encart « Sous-titres »** sur les scènes 9:16 et 16:9 : gros caractères, déplaçable et étirable ; le texte grandit avec la largeur de l'encart. Il s'efface entre deux phrases.
+- **Trois affichages** dans l'onglet 🖼️ Contenus :
+  - 🎬 vidéo seule ;
+  - 🎬 vidéo + sous-titres ;
+  - 🔊 **son + sous-titres** : l'image est cachée, le son continue, l'encart affiche « 🔊 En écoute ».
+- **Vidéos YouTube** : sous-titres récupérés automatiquement (module `youtube-transcript-api`, à installer une fois), dans la langue choisie, sinon dans la langue parlée de la vidéo.
+- **Vidéos de ton PC** : fichier `.srt` ou `.vtt` du même nom posé à côté de la vidéo.
+- **Témoin** dans la régie : sous-titres trouvés, absents ou refusés par YouTube, dès que la vidéo est choisie.
+
+### Améliorations
+- Les boutons lecture / pause, ±10 s et recommencer pilotent maintenant aussi les vidéos YouTube (ils n'agissaient que sur les fichiers).
+
 ## [2.3.0] — 2026-11-06
 
 ### Numéros d'urgence

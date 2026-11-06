@@ -627,6 +627,23 @@ pub struct FullLiveState {
     pub video_yt_controls: bool,
     #[serde(default)]
     pub video_yt_mute: bool,
+    // Sous-titres des vidéos : "video" (vidéo seule) | "video_subs" (vidéo + sous-titres) | "audio_subs" (son + sous-titres, image cachée)
+    #[serde(default = "default_video_display_mode")]
+    pub video_display_mode: String,
+    // Langues préférées des sous-titres YouTube, par ordre de préférence ("fr" ou "fr,en")
+    #[serde(default = "default_subtitles_lang")]
+    pub subtitles_lang: String,
+    #[serde(default = "default_100")]
+    pub subtitles_scale_pct: u32,
+    // Témoin affiché dans la régie (sous-titres trouvés, absents, erreur)
+    #[serde(skip)]
+    pub subtitles_status: String,
+    // Incrémenté à chaque nouveau chargement : les scènes relisent alors /subs_data
+    #[serde(default)]
+    pub subtitles_id: u64,
+    // Sous-titres chargés (servis à part par /subs_data, jamais dans /state ni dans live_state.json)
+    #[serde(skip)]
+    pub subtitle_cues: Vec<SubtitleCue>,
     pub preferred_stage_format: String, // "9_16" | "16_9"
     // Jukebox & Votes du Chat TikTok
     pub song_mode: String, // "off" | "queue" | "vote"
@@ -1038,6 +1055,239 @@ fn push_thanks(st: &mut FullLiveState, kind: &str, author: String, gift: String,
     }
 }
 fn default_22() -> u32 { 22 }
+fn default_100() -> u32 { 100 }
+fn default_video_display_mode() -> String { "video".to_string() }
+fn default_subtitles_lang() -> String { "fr".to_string() }
+
+/// Une ligne de sous-titres : début et fin en secondes, texte (peut contenir des retours à la ligne)
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct SubtitleCue {
+    pub start: f64,
+    pub end: f64,
+    pub text: String,
+}
+
+/// "00:01:02,500" / "01:02.500" / "1:02:03.5" → secondes
+fn parse_subtitle_time(raw: &str) -> Option<f64> {
+    let t = raw.trim().replace(',', ".");
+    let parts: Vec<&str> = t.split(':').collect();
+    let mut secs = 0.0;
+    for p in &parts {
+        secs = secs * 60.0 + p.trim().parse::<f64>().ok()?;
+    }
+    if parts.len() >= 2 { Some(secs) } else { None }
+}
+
+/// Lit un fichier .srt ou .vtt (UTF-8, ou Windows-1252 pour les vieux .srt)
+fn parse_srt_vtt(bytes: &[u8]) -> Vec<SubtitleCue> {
+    let text = match String::from_utf8(bytes.to_vec()) {
+        Ok(s) => s,
+        Err(_) => bytes.iter().map(|&b| b as char).collect(),
+    };
+    let text = text.trim_start_matches('\u{feff}').replace("\r\n", "\n").replace('\r', "\n");
+    let mut cues = Vec::new();
+    for block in text.split("\n\n") {
+        let lines: Vec<&str> = block.lines().collect();
+        let Some(pos) = lines.iter().position(|l| l.contains("-->")) else { continue };
+        let mut it = lines[pos].split("-->");
+        let start = it.next().and_then(parse_subtitle_time);
+        // Côté fin, on ignore les réglages de position VTT ("00:02.000 align:start")
+        let end = it.next().and_then(|e| e.split_whitespace().next()).and_then(parse_subtitle_time);
+        let (Some(start), Some(end)) = (start, end) else { continue };
+        let body: Vec<String> = lines[pos + 1..]
+            .iter()
+            .map(|l| strip_subtitle_tags(l).trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
+        if !body.is_empty() && end > start {
+            cues.push(SubtitleCue { start, end, text: body.join("\n") });
+        }
+    }
+    cues.sort_by(|a, b| a.start.partial_cmp(&b.start).unwrap_or(std::cmp::Ordering::Equal));
+    cues
+}
+
+#[cfg(test)]
+mod subtitle_tests {
+    use super::*;
+
+    #[test]
+    fn parse_srt_basique() {
+        let srt = "\u{feff}1\r\n00:00:01,500 --> 00:00:03,000\r\n<i>Bonjour</i> à tous\r\n\r\n2\r\n00:00:04,000 --> 00:00:06,250\r\nDeuxième ligne\r\nsur deux lignes\r\n";
+        let cues = parse_srt_vtt(srt.as_bytes());
+        assert_eq!(cues.len(), 2);
+        assert!((cues[0].start - 1.5).abs() < 1e-9 && (cues[0].end - 3.0).abs() < 1e-9);
+        assert_eq!(cues[0].text, "Bonjour à tous");
+        assert_eq!(cues[1].text, "Deuxième ligne\nsur deux lignes");
+    }
+
+    #[test]
+    fn parse_vtt_et_windows_1252() {
+        let vtt = "WEBVTT\n\n00:01.000 --> 00:02.500 align:start\n{\\an8}Haut\n";
+        let cues = parse_srt_vtt(vtt.as_bytes());
+        assert_eq!(cues.len(), 1);
+        assert_eq!(cues[0].text, "Haut");
+        assert!((cues[0].end - 2.5).abs() < 1e-9);
+        // « é » en Windows-1252 (0xE9), fréquent dans les vieux .srt
+        let latin = b"1\n00:00:01,000 --> 00:00:02,000\nt\xe9moignage\n";
+        assert_eq!(parse_srt_vtt(latin)[0].text, "témoignage");
+    }
+}
+
+/// Retire les balises <i>, <b>, <font …>, {\an8}… des sous-titres
+fn strip_subtitle_tags(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut depth_angle = false;
+    let mut depth_brace = false;
+    for c in line.chars() {
+        match c {
+            '<' => depth_angle = true,
+            '>' if depth_angle => depth_angle = false,
+            '{' => depth_brace = true,
+            '}' if depth_brace => depth_brace = false,
+            _ if !depth_angle && !depth_brace => out.push(c),
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Cherche un fichier de sous-titres à côté de la vidéo : même nom en .srt / .vtt (ou .fr.srt)
+fn load_local_subtitles(video_path: &str) -> Result<(Vec<SubtitleCue>, String), String> {
+    let path = PathBuf::from(video_path);
+    let (Some(dir), Some(stem)) = (path.parent(), path.file_stem().and_then(|s| s.to_str())) else {
+        return Err("Chemin de vidéo invalide".to_string());
+    };
+    for suffix in ["srt", "vtt", "fr.srt", "fr.vtt"] {
+        let candidate = dir.join(format!("{}.{}", stem, suffix));
+        if let Ok(bytes) = std::fs::read(&candidate) {
+            let cues = parse_srt_vtt(&bytes);
+            if cues.is_empty() {
+                return Err(format!("Le fichier {}.{} est vide ou illisible", stem, suffix));
+            }
+            return Ok((cues, format!("fichier {}.{}", stem, suffix)));
+        }
+    }
+    Err(format!("none:Pas de sous-titres : pose un fichier « {}.srt » à côté de la vidéo", stem))
+}
+
+/// Récupère les sous-titres d'une vidéo YouTube via tools_python/youtube_subtitles.py
+fn fetch_youtube_subtitles(video_id: &str, langs: &str) -> Result<(Vec<SubtitleCue>, String), String> {
+    let script = get_app_dir().join("tools_python").join("youtube_subtitles.py");
+    let output = Command::new("python")
+        .arg(script.to_string_lossy().to_string())
+        .arg(video_id)
+        .arg(langs)
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| format!("Python introuvable ({})", e))?;
+    let val: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|_| {
+        let err = String::from_utf8_lossy(&output.stderr);
+        format!("Réponse illisible : {}", err.lines().last().unwrap_or("").chars().take(100).collect::<String>())
+    })?;
+    if !val.get("success").and_then(|v| v.as_bool()).unwrap_or(false) {
+        let msg = val.get("error").and_then(|v| v.as_str()).unwrap_or("Échec").to_string();
+        let none = val.get("none").and_then(|v| v.as_bool()).unwrap_or(false);
+        return Err(if none { format!("none:{}", msg) } else { msg });
+    }
+    let cues: Vec<SubtitleCue> = val
+        .get("cues")
+        .and_then(|c| c.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|c| {
+                    let a = c.as_array()?;
+                    Some(SubtitleCue {
+                        start: a.first()?.as_f64()?,
+                        end: a.get(1)?.as_f64()?,
+                        text: a.get(2)?.as_str()?.to_string(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let language = val.get("language").and_then(|v| v.as_str()).unwrap_or("?");
+    let mut desc = language.to_string();
+    if val.get("translated").and_then(|v| v.as_bool()).unwrap_or(false) {
+        desc.push_str(", traduction automatique");
+    } else if val.get("generated").and_then(|v| v.as_bool()).unwrap_or(false) {
+        desc.push_str(", automatiques");
+    }
+    Ok((cues, desc))
+}
+
+/// Tâche de fond : à chaque changement de vidéo (ou de langue), charge ses sous-titres.
+/// Ils sont cherchés dès qu'une vidéo est choisie, pour que le témoin de la régie
+/// indique avant la diffusion si la vidéo en a.
+/// (clé, id YouTube, fichier vidéo, langues) de la vidéo actuellement choisie
+fn subtitles_source(st: &FullLiveState) -> (String, String, String, String) {
+    let langs = st.subtitles_lang.trim().to_string();
+    if st.video_source_type == "youtube" {
+        let id = st.video_youtube_id.trim().to_string();
+        let key = if id.is_empty() { String::new() } else { format!("yt:{}|{}", id, langs) };
+        (key, id, String::new(), langs)
+    } else {
+        let p = st.video_file_path.trim().to_string();
+        let key = if p.is_empty() { String::new() } else { format!("file:{}", p) };
+        (key, String::new(), p, langs)
+    }
+}
+
+fn spawn_subtitles_watcher(state: Arc<Mutex<FullLiveState>>) {
+    thread::spawn(move || {
+        let mut loaded_key = String::new();
+        loop {
+            thread::sleep(std::time::Duration::from_millis(800));
+            let (key, yt_id, file_path, langs) = {
+                let Ok(st) = state.lock() else { continue };
+                subtitles_source(&st)
+            };
+            if key == loaded_key {
+                continue;
+            }
+            loaded_key = key.clone();
+            if key.is_empty() {
+                if let Ok(mut st) = state.lock() {
+                    st.subtitle_cues.clear();
+                    st.subtitles_status.clear();
+                    st.subtitles_id += 1;
+                }
+                continue;
+            }
+            if let Ok(mut st) = state.lock() {
+                st.subtitle_cues.clear();
+                st.subtitles_status = "⏳ Recherche des sous-titres…".to_string();
+                st.subtitles_id += 1;
+            }
+            let result = if !yt_id.is_empty() {
+                fetch_youtube_subtitles(&yt_id, if langs.is_empty() { "fr" } else { &langs })
+            } else {
+                load_local_subtitles(&file_path)
+            };
+            if let Ok(mut st) = state.lock() {
+                if subtitles_source(&st).0 != key {
+                    // La vidéo a changé pendant la recherche : on recommence avec la nouvelle
+                    loaded_key.clear();
+                    continue;
+                }
+                match result {
+                    Ok((cues, desc)) => {
+                        st.subtitles_status = format!("✅ Sous-titres : {} ({} lignes)", desc, cues.len());
+                        st.subtitle_cues = cues;
+                    }
+                    Err(e) => {
+                        st.subtitle_cues.clear();
+                        st.subtitles_status = match e.strip_prefix("none:") {
+                            Some(msg) => format!("⚪ {}", msg),
+                            None => format!("❌ Sous-titres : {}", e),
+                        };
+                    }
+                }
+                st.subtitles_id += 1;
+            }
+        }
+    });
+}
 fn default_14() -> u32 { 14 }
 
 impl Default for FullLiveState {
@@ -1131,6 +1381,12 @@ impl Default for FullLiveState {
             video_yt_loop: false,
             video_yt_controls: true,
             video_yt_mute: false,
+            video_display_mode: default_video_display_mode(),
+            subtitles_lang: default_subtitles_lang(),
+            subtitles_scale_pct: 100,
+            subtitles_status: String::new(),
+            subtitles_id: 0,
+            subtitle_cues: Vec::new(),
             preferred_stage_format: "9_16".to_string(),
             song_mode: "off".to_string(),
             song_requests: Vec::new(),
@@ -2981,6 +3237,63 @@ impl TelecommandeApp {
     }
 
     /// Vidéo du live : YouTube ou fichiers, affichage, taille, lecture
+    /// Affichage de la vidéo (vidéo seule / vidéo + sous-titres / son + sous-titres), langue, taille, témoin
+    fn render_subtitles_controls(&mut self, ui: &mut egui::Ui) {
+        let Ok(mut st) = self.state.lock() else { return };
+        let mut changed = false;
+        egui::Frame::none()
+            .fill(Color32::from_rgb(20, 24, 34))
+            .stroke(Stroke::new(1.0_f32, Color32::from_rgb(71, 85, 105)))
+            .rounding(Rounding::same(6.0))
+            .inner_margin(egui::Margin::same(8.0))
+            .show(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new("💬 Affichage :").strong().color(Color32::WHITE));
+                    for (v, t, tip) in [
+                        ("video", "🎬 Vidéo seule", "La vidéo, sans sous-titres"),
+                        ("video_subs", "🎬 Vidéo + sous-titres", "La vidéo et l'encart des sous-titres"),
+                        ("audio_subs", "🔊 Son + sous-titres", "L'image est cachée, le son continue et les sous-titres restent affichés"),
+                    ] {
+                        changed |= ui
+                            .selectable_value(&mut st.video_display_mode, v.to_string(), t)
+                            .on_hover_text(tip)
+                            .changed();
+                    }
+                });
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new("Langue :").size(11.5).color(Color32::from_rgb(203, 213, 225)));
+                    changed |= ui
+                        .add(egui::TextEdit::singleline(&mut st.subtitles_lang).desired_width(60.0))
+                        .on_hover_text("Code de langue YouTube, par ordre de préférence : « fr », ou « fr,en ». Sans sous-titres dans cette langue, la langue d'origine de la vidéo est utilisée.")
+                        .changed();
+                    ui.add_space(8.0);
+                    ui.label(RichText::new("Taille :").size(11.5).color(Color32::from_rgb(203, 213, 225)));
+                    changed |= ui.add(egui::Slider::new(&mut st.subtitles_scale_pct, 50..=250).suffix(" %")).changed();
+                });
+                if !st.subtitles_status.is_empty() {
+                    let col = if st.subtitles_status.starts_with('✅') {
+                        Color32::from_rgb(74, 222, 128)
+                    } else if st.subtitles_status.starts_with('❌') {
+                        Color32::from_rgb(248, 113, 113)
+                    } else {
+                        Color32::from_rgb(203, 213, 225)
+                    };
+                    ui.label(RichText::new(&st.subtitles_status).size(11.0).color(col));
+                }
+                if st.video_display_mode != "video" && st.video_source_type != "youtube" {
+                    ui.label(
+                        RichText::new("💡 Fichiers vidéo : pose un fichier .srt de même nom à côté de la vidéo (ex. temoignage.mp4 + temoignage.srt).")
+                            .size(10.5)
+                            .italics()
+                            .color(Color32::from_gray(150)),
+                    );
+                }
+            });
+        if changed {
+            save_state_json(&st);
+        }
+    }
+
     fn section_video(&mut self, ui: &mut egui::Ui) {
 
         ui.add_space(6.0);
@@ -3067,6 +3380,9 @@ impl TelecommandeApp {
                                 save_state_json(&st);
                             }
                         }
+
+                        ui.add_space(4.0);
+                        self.render_subtitles_controls(ui);
 
                         // --- PANNEAU YOUTUBE DÉDIÉ ---
                         if vid_src_type == "youtube" {
@@ -5939,6 +6255,24 @@ fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveSt
             return;
         }
 
+        if url.starts_with("/subs_data") {
+            // Sous-titres de la vidéo en cours, servis à part pour ne pas alourdir /state (lu 4 fois par seconde)
+            let json_bytes = {
+                let st = state.lock().unwrap();
+                let cues: Vec<(f64, f64, &str)> = st.subtitle_cues.iter().map(|c| (c.start, c.end, c.text.as_str())).collect();
+                serde_json::to_vec(&serde_json::json!({ "id": st.subtitles_id, "cues": cues })).unwrap_or_default()
+            };
+            let ct = Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap();
+            let _ = req.respond(Response::from_data(json_bytes).with_header(ct).with_header(cors).with_header(no_cache).with_header(conn_close));
+            return;
+        }
+        if url.starts_with("/subs.js") {
+            let js = resolve_app_file("stage_subtitles.js").unwrap_or_default();
+            let ct = Header::from_bytes(&b"Content-Type"[..], &b"application/javascript; charset=utf-8"[..]).unwrap();
+            let _ = req.respond(Response::from_data(js).with_header(ct).with_header(cors).with_header(no_cache).with_header(conn_close));
+            return;
+        }
+
         if url.starts_with("/state") {
             let json_bytes = {
                 let mut st = state.lock().unwrap();
@@ -6347,6 +6681,7 @@ fn main() -> eframe::Result<()> {
     thread::spawn(move || {
         run_http_server(state_http);
     });
+    spawn_subtitles_watcher(Arc::clone(&state));
 
     let state_media = Arc::clone(&state);
     thread::spawn(move || {

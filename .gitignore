@@ -37,3 +37,6 @@ journaux/
 
 # Vidéos locales (trop lourdes pour Git)
 videos/
+
+# Sous-titres YouTube gardés en mémoire (régénérables)
+cache_sous_titres/

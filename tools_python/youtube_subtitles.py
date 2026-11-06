@@ -11,10 +11,15 @@ ou {"success": false, "error": "..."}.
 
 Ordre de recherche : sous-titres manuels dans une langue préférée, puis automatiques
 dans une langue préférée, puis traduction automatique YouTube, puis n'importe quelle langue.
-Dépendance : pip install youtube-transcript-api
+Si le résultat n'est pas dans la langue voulue, essai de Google Traduction (module deep-translator,
+facultatif) ; sinon le JSON contient un champ "warning" et la régie réessaie plus tard.
+Un résultat dans la bonne langue est gardé dans cache_sous_titres/<id>_<langue>.json.
+Dépendances : pip install youtube-transcript-api (et deep-translator, facultatif)
 """
 import json
+import os
 import sys
+import time
 
 
 def out(obj):
@@ -83,6 +88,11 @@ def main():
     video_id = sys.argv[1].strip()
     prefs = [l.strip() for l in (sys.argv[2] if len(sys.argv) > 2 else "fr").split(",") if l.strip()] or ["fr"]
 
+    cached = cache_read(video_id, prefs)
+    if cached:
+        out(cached)
+        return
+
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
     except ImportError:
@@ -123,14 +133,100 @@ def main():
         else:
             out({"success": False, "none": True, "error": "Sous-titres vides"})
         return
-    out({
+    result = {
         "success": True,
         "language": (getattr(transcript, "language", "") or "").replace(" (auto-generated)", ""),
         "code": getattr(transcript, "language_code", "") or "",
         "generated": bool(getattr(transcript, "is_generated", False)),
         "translated": translated,
         "cues": cues,
-    })
+    }
+    if not translated and not lang_matches(result["code"], prefs):
+        # YouTube a refusé sa traduction : on essaie Google Traduction, sinon on prévient
+        fr_cues = google_translate_cues(cues, prefs[0])
+        if fr_cues:
+            result.update({"cues": fr_cues, "translated": True, "translated_by": "Google Traduction",
+                           "language": f"{prefs[0]} (traduit de : {result['language']})", "code": prefs[0]})
+        else:
+            result["warning"] = (f"{result['language']} au lieu de « {prefs[0]} » : la vidéo n'a pas de sous-titres "
+                                 f"« {prefs[0]} » et la traduction est refusée pour l'instant. Nouvel essai automatique toutes les 5 min.")
+    if "warning" not in result:
+        cache_write(video_id, prefs, result)
+    out(result)
+
+
+# --- Cache : une traduction réussie est gardée, YouTube et Google la refusent souvent ensuite ---
+CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cache_sous_titres")
+
+
+def cache_path(video_id, prefs):
+    safe = "".join(c for c in video_id if c.isalnum() or c in "-_")
+    return os.path.join(CACHE_DIR, f"{safe}_{prefs[0]}.json")
+
+
+def cache_read(video_id, prefs):
+    try:
+        with open(cache_path(video_id, prefs), encoding="utf-8") as f:
+            data = json.load(f)
+        if data.get("success") and data.get("cues"):
+            data["cached"] = True
+            return data
+    except Exception:
+        pass
+    return None
+
+
+def cache_write(video_id, prefs, result):
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        with open(cache_path(video_id, prefs), "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def lang_matches(code, prefs):
+    base = (code or "").lower().split("-")[0]
+    return any(base == p.lower().split("-")[0] for p in prefs)
+
+
+def google_translate_cues(cues, target):
+    """Traduit les lignes par paquets de ~4 500 caractères (module deep-translator, facultatif).
+    Renvoie None si le module manque, si Google refuse ou si le découpage en lignes n'est pas conservé."""
+    try:
+        from deep_translator import GoogleTranslator
+    except ImportError:
+        return None
+    translator = GoogleTranslator(source="auto", target=target)
+    texts = [c[2].replace("\n", " ") for c in cues]
+    out_texts, chunk = [], []
+
+    def flush():
+        if not chunk:
+            return True
+        res = translator.translate("\n".join(chunk))
+        lines = (res or "").split("\n")
+        if len(lines) != len(chunk):
+            return False
+        out_texts.extend(l.strip() for l in lines)
+        chunk.clear()
+        time.sleep(0.3)
+        return True
+
+    try:
+        size = 0
+        for t in texts:
+            if size + len(t) + 1 > 4500 and not flush():
+                return None
+            if not chunk:
+                size = 0
+            chunk.append(t)
+            size += len(t) + 1
+        if not flush():
+            return None
+    except Exception:
+        return None
+    return [[c[0], c[1], t] for c, t in zip(cues, out_texts)]
 
 
 if __name__ == "__main__":

@@ -646,6 +646,9 @@ pub struct FullLiveState {
     // Incrémenté à chaque nouveau chargement : les scènes relisent alors /subs_data
     #[serde(default)]
     pub subtitles_id: u64,
+    // Incrémenté par le bouton « 🔄 Recharger » : force une nouvelle recherche des sous-titres
+    #[serde(skip)]
+    pub subtitles_reload: u64,
     // Sous-titres chargés (servis à part par /subs_data, jamais dans /state ni dans live_state.json)
     #[serde(skip)]
     pub subtitle_cues: Vec<SubtitleCue>,
@@ -1213,44 +1216,60 @@ fn fetch_youtube_subtitles(video_id: &str, langs: &str) -> Result<(Vec<SubtitleC
         .unwrap_or_default();
     let language = val.get("language").and_then(|v| v.as_str()).unwrap_or("?");
     let mut desc = language.to_string();
-    if val.get("translated").and_then(|v| v.as_bool()).unwrap_or(false) {
-        desc.push_str(", traduction automatique");
+    if let Some(by) = val.get("translated_by").and_then(|v| v.as_str()) {
+        desc.push_str(&format!(", traduits par {}", by));
+    } else if val.get("translated").and_then(|v| v.as_bool()).unwrap_or(false) {
+        desc.push_str(", traduction automatique YouTube");
     } else if val.get("generated").and_then(|v| v.as_bool()).unwrap_or(false) {
         desc.push_str(", automatiques");
+    }
+    if val.get("cached").and_then(|v| v.as_bool()).unwrap_or(false) {
+        desc.push_str(", gardés en mémoire");
+    }
+    // Pas dans la langue voulue : le témoin passe en ⚠️ et la régie réessaiera
+    if let Some(w) = val.get("warning").and_then(|v| v.as_str()) {
+        return Ok((cues, format!("warn:{}", w)));
     }
     Ok((cues, desc))
 }
 
-/// Tâche de fond : à chaque changement de vidéo (ou de langue), charge ses sous-titres.
-/// Ils sont cherchés dès qu'une vidéo est choisie, pour que le témoin de la régie
-/// indique avant la diffusion si la vidéo en a.
 /// (clé, id YouTube, fichier vidéo, langues) de la vidéo actuellement choisie
 fn subtitles_source(st: &FullLiveState) -> (String, String, String, String) {
     let langs = st.subtitles_lang.trim().to_string();
     if st.video_source_type == "youtube" {
         let id = st.video_youtube_id.trim().to_string();
-        let key = if id.is_empty() { String::new() } else { format!("yt:{}|{}", id, langs) };
+        let key = if id.is_empty() { String::new() } else { format!("yt:{}|{}|{}", id, langs, st.subtitles_reload) };
         (key, id, String::new(), langs)
     } else {
         let p = st.video_file_path.trim().to_string();
-        let key = if p.is_empty() { String::new() } else { format!("file:{}", p) };
+        let key = if p.is_empty() { String::new() } else { format!("file:{}|{}", p, st.subtitles_reload) };
         (key, String::new(), p, langs)
     }
 }
 
+/// Nouvel essai automatique quand les sous-titres ne sont pas dans la langue voulue ou ont été refusés
+const SUBTITLES_RETRY_SECS: u64 = 300;
+
+/// Tâche de fond : à chaque changement de vidéo (ou de langue), charge ses sous-titres.
+/// Ils sont cherchés dès qu'une vidéo est choisie, pour que le témoin de la régie
+/// indique avant la diffusion si la vidéo en a. Si la langue n'est pas la bonne, ou si
+/// YouTube refuse, nouvel essai toutes les 5 minutes.
 fn spawn_subtitles_watcher(state: Arc<Mutex<FullLiveState>>) {
     thread::spawn(move || {
         let mut loaded_key = String::new();
+        let mut retry_at: Option<std::time::Instant> = None;
         loop {
             thread::sleep(std::time::Duration::from_millis(800));
             let (key, yt_id, file_path, langs) = {
                 let Ok(st) = state.lock() else { continue };
                 subtitles_source(&st)
             };
-            if key == loaded_key {
+            let retry_due = key == loaded_key && retry_at.is_some_and(|t| std::time::Instant::now() >= t);
+            if key == loaded_key && !retry_due {
                 continue;
             }
             loaded_key = key.clone();
+            retry_at = None;
             if key.is_empty() {
                 if let Ok(mut st) = state.lock() {
                     st.subtitle_cues.clear();
@@ -1259,10 +1278,14 @@ fn spawn_subtitles_watcher(state: Arc<Mutex<FullLiveState>>) {
                 }
                 continue;
             }
-            if let Ok(mut st) = state.lock() {
-                st.subtitle_cues.clear();
-                st.subtitles_status = "⏳ Recherche des sous-titres…".to_string();
-                st.subtitles_id += 1;
+            if !retry_due {
+                // Nouvelle vidéo : on efface les anciens sous-titres. Lors d'un nouvel essai, on garde
+                // ceux affichés (par exemple en anglais) jusqu'à ce que la traduction arrive.
+                if let Ok(mut st) = state.lock() {
+                    st.subtitle_cues.clear();
+                    st.subtitles_status = "⏳ Recherche des sous-titres…".to_string();
+                    st.subtitles_id += 1;
+                }
             }
             let result = if !yt_id.is_empty() {
                 fetch_youtube_subtitles(&yt_id, if langs.is_empty() { "fr" } else { &langs })
@@ -1275,18 +1298,31 @@ fn spawn_subtitles_watcher(state: Arc<Mutex<FullLiveState>>) {
                     loaded_key.clear();
                     continue;
                 }
+                let retry_later = std::time::Instant::now() + std::time::Duration::from_secs(SUBTITLES_RETRY_SECS);
                 match result {
                     Ok((cues, desc)) => {
-                        st.subtitles_status = format!("✅ Sous-titres : {} ({} lignes)", desc, cues.len());
+                        if let Some(warning) = desc.strip_prefix("warn:") {
+                            st.subtitles_status = format!("⚠️ {} ({} lignes)", warning, cues.len());
+                            retry_at = Some(retry_later);
+                        } else {
+                            st.subtitles_status = format!("✅ Sous-titres : {} ({} lignes)", desc, cues.len());
+                        }
                         st.subtitle_cues = cues;
                     }
-                    Err(e) => {
-                        st.subtitle_cues.clear();
-                        st.subtitles_status = match e.strip_prefix("none:") {
-                            Some(msg) => format!("⚪ {}", msg),
-                            None => format!("❌ Sous-titres : {}", e),
-                        };
-                    }
+                    Err(e) => match e.strip_prefix("none:") {
+                        Some(msg) => {
+                            st.subtitle_cues.clear();
+                            st.subtitles_status = format!("⚪ {}", msg);
+                        }
+                        None => {
+                            // Refus passager : on garde d'éventuels sous-titres déjà affichés
+                            if !retry_due {
+                                st.subtitle_cues.clear();
+                            }
+                            st.subtitles_status = format!("❌ Sous-titres : {} (nouvel essai dans 5 min)", e);
+                            retry_at = Some(retry_later);
+                        }
+                    },
                 }
                 st.subtitles_id += 1;
             }
@@ -1393,6 +1429,7 @@ impl Default for FullLiveState {
             subtitles_scale_pct: 100,
             subtitles_status: String::new(),
             subtitles_id: 0,
+            subtitles_reload: 0,
             subtitle_cues: Vec::new(),
             preferred_stage_format: "9_16".to_string(),
             song_mode: "off".to_string(),
@@ -3308,10 +3345,21 @@ impl TelecommandeApp {
                         Color32::from_rgb(74, 222, 128)
                     } else if st.subtitles_status.starts_with('❌') {
                         Color32::from_rgb(248, 113, 113)
+                    } else if st.subtitles_status.starts_with('⚠') {
+                        Color32::from_rgb(251, 191, 36)
                     } else {
                         Color32::from_rgb(203, 213, 225)
                     };
-                    ui.label(RichText::new(&st.subtitles_status).size(11.0).color(col));
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(RichText::new(&st.subtitles_status).size(11.0).color(col));
+                        if ui
+                            .small_button("🔄 Recharger")
+                            .on_hover_text("Cherche à nouveau les sous-titres (par exemple après avoir posé un fichier .srt, ou si la traduction était refusée)")
+                            .clicked()
+                        {
+                            st.subtitles_reload += 1;
+                        }
+                    });
                 }
                 if st.video_display_mode != "video" && st.video_source_type != "youtube" {
                     ui.label(

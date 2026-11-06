@@ -11,6 +11,16 @@ Chaque version est marquée par un tag Git (`v2.1.0`…), ce qui permet d'y reve
 
 ---
 
+## [2.5.1] — 2026-11-06
+
+### Corrections
+- **Sous-titres en anglais alors que « fr » était demandé.** La vidéo n'avait que des sous-titres anglais : le français venait de la traduction automatique de YouTube, qui a marché une fois puis a été refusée. La régie retombait alors en silence sur l'anglais.
+  - Le témoin passe en **⚠️ orange** et explique pourquoi quand la langue n'est pas celle demandée.
+  - **Nouvel essai automatique toutes les 5 minutes** ; les sous-titres déjà affichés restent en attendant.
+  - Si YouTube refuse sa traduction, essai de **Google Traduction** (module facultatif `deep-translator`).
+  - Une traduction réussie est **gardée en mémoire** (`cache_sous_titres/`) : plus besoin de la redemander à chaque redémarrage.
+  - Bouton **🔄 Recharger** à côté du témoin.
+
 ## [2.5.0] — 2026-11-06
 
 ### Nouveautés

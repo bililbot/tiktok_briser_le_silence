@@ -182,7 +182,11 @@ D'où viennent les sous-titres :
 - **Vidéo YouTube** : récupérés automatiquement. **Langue** : « fr » par défaut ; tu peux en mettre plusieurs par ordre de préférence (« fr,en »). Sans sous-titres dans ta langue, ceux de la langue parlée dans la vidéo sont utilisés.
 - **Vidéo de ton PC** : pose un fichier de sous-titres **du même nom** à côté de la vidéo (`temoignage.mp4` + `temoignage.srt`, ou `.vtt`).
 
-Le **témoin** sous ces réglages dit, dès que tu choisis la vidéo, si des sous-titres ont été trouvés (✅), s'il n'y en a pas (⚪) ou si YouTube a refusé la demande (❌, réessaie un peu plus tard).
+Le **témoin** sous ces réglages dit, dès que tu choisis la vidéo, si des sous-titres ont été trouvés (✅), s'il n'y en a pas (⚪) ou si YouTube a refusé la demande (❌).
+
+**⚠️ Sous-titres dans une autre langue** : beaucoup de vidéos n'ont que des sous-titres anglais. Le français vient alors d'une **traduction automatique** (YouTube, ou Google Traduction si le module facultatif `deep-translator` est installé). Ces services la refusent parfois pendant un moment : le témoin passe en orange, les sous-titres s'affichent dans la langue d'origine, et la régie **réessaie toute seule toutes les 5 minutes**. Une fois la traduction obtenue, elle est **gardée en mémoire** pour les prochains lives. Le bouton **🔄 Recharger** relance la recherche tout de suite (utile aussi après avoir posé un fichier `.srt`).
+
+Pour être sûr d'avoir du français pendant le live, lance la vidéo dans la régie **quelques heures avant** : si la traduction est refusée sur le moment, elle a le temps d'arriver et d'être gardée.
 
 L'encart des sous-titres se **déplace et s'étire** comme les autres : le texte grandit avec sa largeur. Réglage **Taille** en plus. Les boutons lecture, pause et ±10 s de la régie marchent maintenant aussi pour les vidéos YouTube.
 - **Article** : onglet **🖼️ Contenus**, volet **Revue de presse**. Colle le lien, clique **🪄 Extraire**, puis ouvre la fenêtre dédiée.

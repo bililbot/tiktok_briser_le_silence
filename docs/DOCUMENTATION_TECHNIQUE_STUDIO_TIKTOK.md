@@ -77,35 +77,41 @@ La barre d'onglets affiche **6 onglets** sur deux rangées :
 | **3** | **[ Presse ]** | • Scraping d'articles web depuis une URL (`tools_python/scraper_article.py`)<br>• Auto-scroll avec réglage de vitesse<br>• Personnalisation typographique, couleurs et badges |
 | **4** | **🗳️ Sondages** | • Sondages à chaud (choix via le chat)<br>• Jauge d'objectif Likes (`like_goal`)<br>• Modes chanson : `off` / `queue` / `vote` |
 | **5** | **🎵 Sons** | • VU-mètre WASAPI double écoute<br>• Lecteur d'état Spotify (Titre, Artiste, Pochette)<br>• Soundboard / jingles (`jingles_library.json`) |
-| **6** | **[ Préférences ]** | • Auto-Tappeur (voir §6)<br>• Compte TikTok hôte & compte secondaire<br>• Gestionnaire des 8 fonds d'écran |
+| **6** | **[ Préférences ]** | • Auto-Tappeur (voir §6)<br>• Compte TikTok hôte & compte secondaire<br>• Éditeur des branches (noms, couleurs, textes, fonds) |
 
 > ℹ️ L'enum `TelecommandeTab` contient aussi `Chat` et `Bannieres`, mais ils **n'apparaissent pas** dans la barre d'onglets.
 > La configuration du bot chat et des numéros d'urgence s'ouvre dans des fenêtres séparées (`bot_config.json`, `emergency_numbers.json`).
 
 ---
 
-## 🖼️ 3. Gestionnaire des 8 Décors / Images de Fond
+## 🎛️ 3. Branches Configurables (`branches.json`)
 
-Les scènes s'adaptent instantanément à la branche active sans recompilation. Les 8 emplacements sont stockés dans `FullLiveState.custom_backgrounds` (struct `CustomBackgrounds`).
+Chaque branche du live est entièrement configurable, sans recompilation. La configuration est stockée dans `branches.json` (struct `BranchConfig`), puis copiée dans `FullLiveState.branches`, que les scènes reçoivent via `/state`.
 
-### Valeurs par défaut
-| Emplacement | Fichier par défaut |
+| Champ | Rôle |
 | :--- | :--- |
-| `vss_9_16` | `/assets/bg_branche1_vss.jpg` |
-| `politique_9_16` | `/assets/bg_branche2_politique.jpg` |
-| `musique_9_16` | `/assets/bg_branche3_musique.jpg` |
-| `chill_9_16` | `/assets/bg_branche4_chill.jpg` |
-| `vss_16_9` | `/assets/bg_branche1_vss_wide16_9.jpg` |
-| `politique_16_9` | `/assets/bg_branche2_politique_wide16_9.jpg` |
-| `musique_16_9` | `/assets/bg_branche3_musique_wide16_9.jpg` |
-| `chill_16_9` | `/assets/bg_branche4_chill_wide16_9.jpg` |
+| `id` | Identifiant interne (généré pour les nouvelles branches : `branche5`…) |
+| `label` | Texte du bouton dans la régie, emoji compris |
+| `color` / `accent` | Couleur principale (bouton et scènes) et couleur d'accent claire, au format `#rrggbb` |
+| `tag` | Étiquette en bas de scène |
+| `scene_title` | Titre d'en-tête de la scène |
+| `topic` / `sub` | Sujet et sous-titre par défaut, appliqués à chaque bascule sur la branche |
+| `box_mode` | Mode du bandeau : `combine`, `musique` ou `sujet` |
+| `auto_emergency` | Affiche (ou masque) automatiquement les numéros d'urgence quand on passe sur cette branche |
+| `bg_9_16` / `bg_16_9` | Fonds d'écran vertical et paysage |
 
-### Remplacement d'un fond (bouton « 📂 Parcourir... »)
-1. L'image choisie (JPG, PNG, WEBP) est **copiée** vers `C:\laragon\www\tiktok_briser_le_silence\assets\custom_bg_{emplacement}.{ext}` (chemin codé en dur).
-2. L'emplacement prend la valeur `/assets/custom_bg_{emplacement}.{ext}?v={timestamp}` (le `?v=` force le rechargement dans OBS).
-3. L'image est servie par la route générique `/assets/` : il n'existe **pas** de route `/assets/custom_bg/...` dédiée.
-
-> ⚠️ La route `/assets/` sert les `.webp` avec le type `image/jpeg`.
+* **Premier lancement** : si `branches.json` n'existe pas, il est créé avec les 4 branches historiques (VSS, Politique, Musique, Chill). Les fonds déjà choisis dans l'ancien gestionnaire à 8 décors (`custom_backgrounds`) sont repris.
+* **Sélecteur unique** : la rangée de boutons en haut de la régie (et la version compacte du mode mini) est générée depuis la config, avec la couleur de chaque branche.
+  * Les **3 premières** branches ont les raccourcis **F9, F10, F11** ; **F12** reste la vidéo.
+  * Le bloc « 1. BRANCHE ACTIVE » de l'onglet Régie ne sélectionne plus de branche. Il propose « ↺ Remettre les textes par défaut » et « 💾 Garder les textes actuels comme défaut ».
+* **Éditeur** (onglet **[ Préférences ]**, bloc « 🎛️ BRANCHES DU LIVE ») :
+  * pour chaque branche : nom, deux couleurs, étiquette, titre, sujet, sous-titre, mode, urgences et deux fonds ;
+  * boutons **⬆ Monter** (l'ordre décide des raccourcis F9 à F11), **🗑 Supprimer**, **➕ Ajouter une branche** et **🔄 Rétablir les 4 branches d'origine** ;
+  * les modifications restent en **brouillon** jusqu'à **💾 Enregistrer** (ou **Annuler**).
+* **Fonds** : l'image choisie est copiée dans `assets/custom_bg_{id}_{9_16|16_9}.{ext}` et référencée en `/assets/…?v={horodatage}`, ce qui force le rechargement dans OBS.
+* **Scènes** : `branchCfg(st, br)` lit la config de la branche dans `st.branches`.
+  * Si la branche n'y est pas, la scène se rabat sur les valeurs historiques (`BRANCH_CONFIG`) et sur les anciens `custom_backgrounds`.
+  * Couleurs, étiquette et fond sont réappliqués au changement de branche **et** quand la config de la branche affichée est modifiée.
 
 ---
 
@@ -145,7 +151,7 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 | **F3** | Affiche / masque les numéros d'urgence |
 | **F4** | Affiche / masque l'encart d'annonce libre (`custom_box_visible`) |
 | **F8** | Bouclier anti-raid |
-| **F9 / F10 / F11** | Branche VSS / Politique / Musique |
+| **F9 / F10 / F11** | 1re / 2e / 3e branche de `branches.json` (ordre réglable dans Préférences) |
 | **F12** | Affiche / masque la vidéo |
 
 * **Implémentation** : la table `GLOBAL_HOTKEYS` (`win_audio_media.rs`) associe chaque touche à son action.

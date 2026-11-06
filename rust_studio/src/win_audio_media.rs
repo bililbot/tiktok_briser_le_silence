@@ -331,9 +331,10 @@ pub const GLOBAL_HOTKEYS: [(VIRTUAL_KEY, &str); 9] = [
     (VK_F3, "emergency"),
     (VK_F4, "annonce"),
     (VK_F8, "shield"),
-    (VK_F9, "vss"),
-    (VK_F10, "politique"),
-    (VK_F11, "musique"),
+    // F9–F11 : 1re, 2e et 3e branche de branches.json (dans l'ordre choisi en Préférences)
+    (VK_F9, "branch1"),
+    (VK_F10, "branch2"),
+    (VK_F11, "branch3"),
     (VK_F12, "toggle_video"),
 ];
 

@@ -1188,8 +1188,23 @@
             const st = document.getElementById("stageRoot");
             st.classList.toggle("wide-fill-mode");
             const isWide = st.classList.contains("wide-fill-mode");
-            const cfg = BRANCH_CONFIG[currentBranch] || BRANCH_CONFIG.musique;
+            const cfg = lastBranchCfg || BRANCH_CONFIG[currentBranch] || BRANCH_CONFIG.musique;
             document.getElementById("wallBg").src = isWide ? (cfg.bgWide || cfg.bg) : cfg.bg;
+        }
+
+        // Config de la branche : celle de la régie (branches.json via /state) si elle existe,
+        // sinon les valeurs historiques ci-dessous ; les anciens décors personnalisés restent pris en compte
+        let lastBranchCfg = null;
+        let lastBranchSig = "";
+        function branchCfg(st, br) {
+            const b = (st.branches || []).find(x => x.id === br);
+            if (b) {
+                return { bg: b.bg_16_9, bgWide: b.bg_16_9, color: b.color, accent: b.accent, tag: b.tag, defaultTitle: b.scene_title };
+            }
+            const base = Object.assign({}, BRANCH_CONFIG[br] || BRANCH_CONFIG.musique);
+            const cb = st.custom_backgrounds || {};
+            if (cb[br + "_16_9"]) base.bgWide = cb[br + "_16_9"];
+            return base;
         }
 
         function toggleFooterVisibility() {
@@ -1529,14 +1544,14 @@
                 isTrackPlaying = !!sp.playing;
 
                 const br = st.branch || "musique";
-                const cfg = BRANCH_CONFIG[br] || BRANCH_CONFIG.musique;
-                if (br !== currentBranch) {
+                const cfg = branchCfg(st, br);
+                const branchSig = JSON.stringify([br, cfg]);
+                if (branchSig !== lastBranchSig) {
+                    // Changement de branche OU modification de sa config dans la régie
+                    lastBranchSig = branchSig;
+                    lastBranchCfg = cfg;
                     currentBranch = br;
-                    let activeBg2 = cfg.bgWide || cfg.bg;
-                    if (st.custom_backgrounds && st.custom_backgrounds[br + "_16_9"]) {
-                        activeBg2 = st.custom_backgrounds[br + "_16_9"];
-                    }
-                    document.getElementById("wallBg").src = activeBg2;
+                    document.getElementById("wallBg").src = cfg.bgWide || cfg.bg;
                     document.documentElement.style.setProperty("--branch-col", cfg.color);
                     document.documentElement.style.setProperty("--accent-col", cfg.accent);
                     document.getElementById("bottomBranchTag").textContent = cfg.tag;

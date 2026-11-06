@@ -527,6 +527,9 @@ pub struct FullLiveState {
     pub timer_gong_done: bool,
     // Remerciements automatiques : les scènes affichent les éléments dont l'id est plus récent que le dernier vu
     // File privée des demandes d'aide (jamais affichée sur les scènes) pour recontacter les personnes après le live
+    // Branches configurables (copie de branches.json, envoyée aux scènes via /state)
+    #[serde(default)]
+    pub branches: Vec<BranchConfig>,
     #[serde(default)]
     pub journal: LiveJournal,
     #[serde(default)]
@@ -625,6 +628,97 @@ fn default_tiktok_helper() -> String { "@second_compte".to_string() }
 
 fn default_true() -> bool { true }
 
+/// Branche du live entièrement configurable (branches.json, onglet Préférences)
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct BranchConfig {
+    pub id: String,
+    pub label: String,       // texte du bouton dans la régie (emoji compris)
+    pub color: String,       // couleur principale "#rrggbb" (bouton + scènes)
+    pub accent: String,      // couleur claire d'accent sur les scènes
+    pub tag: String,         // étiquette en bas de scène
+    pub scene_title: String, // titre d'en-tête de la scène
+    pub topic: String,       // sujet par défaut (modifiable en direct)
+    pub sub: String,         // sous-titre par défaut
+    pub box_mode: String,    // "combine" | "musique" | "sujet"
+    pub auto_emergency: bool,
+    pub bg_9_16: String,
+    pub bg_16_9: String,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn branch(id: &str, label: &str, color: &str, accent: &str, tag: &str, scene_title: &str, topic: &str, sub: &str, box_mode: &str, auto_emergency: bool, bg_9_16: &str, bg_16_9: &str) -> BranchConfig {
+    BranchConfig {
+        id: id.into(),
+        label: label.into(),
+        color: color.into(),
+        accent: accent.into(),
+        tag: tag.into(),
+        scene_title: scene_title.into(),
+        topic: topic.into(),
+        sub: sub.into(),
+        box_mode: box_mode.into(),
+        auto_emergency,
+        bg_9_16: bg_9_16.into(),
+        bg_16_9: bg_16_9.into(),
+    }
+}
+
+/// Les 4 branches historiques, reprenant les fonds déjà choisis dans l'ancien gestionnaire à 8 décors
+fn default_branches(bgs: &CustomBackgrounds) -> Vec<BranchConfig> {
+    vec![
+        branch("vss", "💜 VSS & Inceste", "#8b5cf6", "#d8b4fe", "💜 PAROLE AUX SURVIVANT·E·S", "PAROLE AUX SURVIVANT·E·S — INCESTE & VSS",
+            "PAROLE AUX SURVIVANT·E·S : BRISER LE TABOU DE L'INCESTE", "📞 Aide 24h/24 : 119 (Enfance) • 3919 (Violences) • Chat bienveillant",
+            "combine", true, &bgs.vss_9_16, &bgs.vss_16_9),
+        branch("politique", "✊ Politique", "#dc2626", "#fca5a5", "✊ FRONT MILITANT", "ANTIFA • FÉMINISTE • ANTICAPITALISTE",
+            "FRONT MILITANT : ANTIFA • FÉMINISTE • ANTICAPITALISTE", "✊ Justice sociale, égalité & riposte populaire • Débat en direct",
+            "combine", false, &bgs.politique_9_16, &bgs.politique_16_9),
+        branch("musique", "🎸 Musique", "#d97706", "#fdba74", "🎸 UNDERGROUND INSURRECTION", "UNDERGROUND INSURRECTION — LIVE",
+            "UNDERGROUND INSURRECTION : LA BANDE-SON DE NOS LUTTES", "🔊 Punk • Techno • Hardcore • Hip-Hop • Metal • Grime • Dub",
+            "musique", false, &bgs.musique_9_16, &bgs.musique_16_9),
+        branch("chill", "☕ Chill", "#10b981", "#6ee7b7", "☕ ESPACE CHILL & ÉCHANGE", "CHILL • DÉCOMPRESSION & DISCUSSION",
+            "☕ CHILL & DÉTENTE : ON PREND LE TEMPS", "Discussion posée • Écoute & bienveillance • Vos questions en direct",
+            "combine", false, &bgs.chill_9_16, &bgs.chill_16_9),
+    ]
+}
+
+const BRANCHES_FILE: &str = "branches.json";
+
+/// Charge branches.json ; au premier lancement, le crée à partir des 4 branches historiques
+fn load_branches(st: &mut FullLiveState) {
+    let loaded = std::fs::read_to_string(app_path(BRANCHES_FILE))
+        .ok()
+        .and_then(|raw| serde_json::from_str::<Vec<BranchConfig>>(&raw).ok())
+        .filter(|list| !list.is_empty());
+    match loaded {
+        Some(list) => st.branches = list,
+        None => {
+            st.branches = default_branches(&st.custom_backgrounds);
+            save_branches_file(&st.branches);
+        }
+    }
+}
+
+fn save_branches_file(list: &[BranchConfig]) {
+    if let Ok(json_str) = serde_json::to_string_pretty(list) {
+        let _ = std::fs::write(app_path(BRANCHES_FILE), json_str);
+    }
+}
+
+/// "#rrggbb" → couleur egui (gris si invalide)
+fn hex_color(hex: &str) -> Color32 {
+    let h = hex.trim().trim_start_matches('#');
+    let p = |i: usize| h.get(i..i + 2).and_then(|s| u8::from_str_radix(s, 16).ok());
+    match (p(0), p(2), p(4)) {
+        (Some(r), Some(g), Some(b)) => Color32::from_rgb(r, g, b),
+        _ => Color32::from_rgb(107, 114, 128),
+    }
+}
+
+/// Raccourci attribué à la branche selon sa position (F12 reste la vidéo)
+fn branch_hotkey_label(index: usize) -> Option<&'static str> {
+    ["F9", "F10", "F11"].get(index).copied()
+}
+
 /// Ajoute les polices emoji/symboles de Windows en secours : sans elles, egui affiche « □ »
 /// à la place de 🛡️ ⏱️ 🗳️… (les glyphes sont rendus en monochrome)
 fn install_windows_emoji_fonts(ctx: &egui::Context) {
@@ -640,10 +734,18 @@ fn install_windows_emoji_fonts(ctx: &egui::Context) {
     ctx.set_fonts(fonts);
 }
 
-/// Bascule de branche (boutons de la régie et raccourcis F9–F11)
+/// Bascule de branche (boutons de la régie et raccourcis F9–F11) : textes et urgences selon branches.json
 fn apply_branch(st: &mut FullLiveState, branch_key: &str) {
     st.branch = branch_key.to_string();
     st.branch_timestamp = now_secs();
+    if let Some(b) = st.branches.iter().find(|b| b.id == branch_key).cloned() {
+        st.custom_topic = b.topic;
+        st.custom_sub = b.sub;
+        st.box_mode = b.box_mode;
+        st.emergency_visible = b.auto_emergency;
+        return;
+    }
+    // Repli si la branche n'est pas (ou plus) dans la configuration
     match branch_key {
         "vss" => {
             st.custom_topic = "PAROLE AUX SURVIVANT·E·S : BRISER LE TABOU DE L'INCESTE".to_string();
@@ -716,7 +818,13 @@ fn apply_hotkey(st: &mut FullLiveState, action: &str) {
             st.shield_active = !st.shield_active;
             st.branch_timestamp = now_secs();
         }
-        "vss" | "politique" | "musique" => apply_branch(st, action),
+        "branch1" | "branch2" | "branch3" => {
+            let index = action[6..].parse::<usize>().unwrap_or(1) - 1;
+            match st.branches.get(index).map(|b| b.id.clone()) {
+                Some(id) => apply_branch(st, &id),
+                None => return,
+            }
+        }
         "toggle_video" => {
             st.video_active = !st.video_active;
             st.branch_timestamp = now_secs();
@@ -765,6 +873,7 @@ impl Default for FullLiveState {
             timer_end_ts: 0.0,
             timer_remaining_secs: 0.0,
             timer_gong_done: false,
+            branches: Vec::new(),
             journal: LiveJournal::default(),
             help_alert_seq: 0,
             help_alerts: Vec::new(),
@@ -979,6 +1088,7 @@ struct TelecommandeApp {
     video_input_yt_url: String,
     journal_status: String,
     chat_bridge: Option<std::process::Child>,
+    branches_draft: Option<Vec<BranchConfig>>,
 }
 
 impl TelecommandeApp {
@@ -1005,6 +1115,7 @@ impl TelecommandeApp {
             video_input_yt_url: String::new(),
             journal_status: String::new(),
             chat_bridge: None,
+            branches_draft: None,
         };
         app.load_library();
         app.load_emergency_numbers();
@@ -1968,31 +2079,33 @@ impl TelecommandeApp {
 
         ui.add_space(3.0);
 
-        // Ligne 2: Les 4 Branches Principales (4 boutons calculés dynamiquement sans jamais déborder)
-        ui.horizontal(|ui| {
-            let total_w = ui.available_width();
-            let btn_w = (total_w - 15.0) / 4.0;
-
-            let b1_col = if current_branch == "vss" { Color32::from_rgb(147, 51, 234) } else { Color32::from_rgb(38, 25, 52) };
-            if ui.add_sized([btn_w, 30.0], egui::Button::new(RichText::new("💜 [F9] VSS").strong().size(11.0).color(Color32::WHITE)).fill(b1_col)).clicked() {
-                self.set_branch("vss");
-            }
-
-            let b2_col = if current_branch == "politique" { Color32::from_rgb(220, 38, 38) } else { Color32::from_rgb(52, 25, 25) };
-            if ui.add_sized([btn_w, 30.0], egui::Button::new(RichText::new("[F10] Politique").strong().size(11.0).color(Color32::WHITE)).fill(b2_col)).clicked() {
-                self.set_branch("politique");
-            }
-
-            let b3_col = if current_branch == "musique" { Color32::from_rgb(217, 119, 6) } else { Color32::from_rgb(52, 35, 18) };
-            if ui.add_sized([btn_w, 30.0], egui::Button::new(RichText::new("[F11] Musique").strong().size(11.0).color(Color32::WHITE)).fill(b3_col)).clicked() {
-                self.set_branch("musique");
-            }
-
-            let b4_col = if current_branch == "chill" { Color32::from_rgb(16, 185, 129) } else { Color32::from_rgb(20, 48, 38) };
-            if ui.add_sized([btn_w, 30.0], egui::Button::new(RichText::new("☕ Chill").strong().size(11.0).color(Color32::WHITE)).fill(b4_col)).clicked() {
-                self.set_branch("chill");
-            }
-        });
+        // Ligne 2: Sélecteur unique des branches, généré depuis branches.json (4 boutons par ligne)
+        let branches = self.state.lock().map(|st| st.branches.clone()).unwrap_or_default();
+        let mut clicked_branch: Option<String> = None;
+        for (row_index, row) in branches.chunks(4).enumerate() {
+            ui.horizontal(|ui| {
+                let btn_w = (ui.available_width() - 15.0) / 4.0;
+                for (i, b) in row.iter().enumerate() {
+                    let index = row_index * 4 + i;
+                    let active = b.id == current_branch;
+                    let col = hex_color(&b.color);
+                    let fill = if active { col } else { col.gamma_multiply(0.28) };
+                    let text = match branch_hotkey_label(index) {
+                        Some(key) => format!("[{}] {}", key, b.label),
+                        None => b.label.clone(),
+                    };
+                    let btn = egui::Button::new(RichText::new(text).strong().size(11.0).color(Color32::WHITE))
+                        .fill(fill)
+                        .stroke(if active { Stroke::new(2.0_f32, Color32::WHITE) } else { Stroke::NONE });
+                    if ui.add_sized([btn_w, 30.0], btn).clicked() {
+                        clicked_branch = Some(b.id.clone());
+                    }
+                }
+            });
+        }
+        if let Some(id) = clicked_branch {
+            self.set_branch(&id);
+        }
 
         ui.add_space(3.0);
 
@@ -2179,21 +2292,26 @@ impl TelecommandeApp {
 
         ui.add_space(4.0);
 
-        // 3 Branches
-        ui.horizontal(|ui| {
-            let btn_w = (ui.available_width() - 8.0) / 3.0;
-            let b1 = egui::Button::new(RichText::new("💜 VSS").strong().size(11.5).color(Color32::WHITE))
-                .fill(if current_branch == "vss" { Color32::from_rgb(147, 51, 234) } else { Color32::from_rgb(38, 25, 52) });
-            if ui.add_sized([btn_w, 30.0], b1).clicked() { self.set_branch("vss"); }
-
-            let b2 = egui::Button::new(RichText::new("✊ Pol.").strong().size(11.5).color(Color32::WHITE))
-                .fill(if current_branch == "politique" { Color32::from_rgb(220, 38, 38) } else { Color32::from_rgb(52, 25, 25) });
-            if ui.add_sized([btn_w, 30.0], b2).clicked() { self.set_branch("politique"); }
-
-            let b3 = egui::Button::new(RichText::new("🎸 Mus.").strong().size(11.5).color(Color32::WHITE))
-                .fill(if current_branch == "musique" { Color32::from_rgb(217, 119, 6) } else { Color32::from_rgb(52, 35, 18) });
-            if ui.add_sized([btn_w, 30.0], b3).clicked() { self.set_branch("musique"); }
-        });
+        // Branches (depuis branches.json, 3 par ligne, nom raccourci pour la fenêtre mini)
+        let branches = self.state.lock().map(|st| st.branches.clone()).unwrap_or_default();
+        let mut clicked_branch: Option<String> = None;
+        for row in branches.chunks(3) {
+            ui.horizontal(|ui| {
+                let btn_w = (ui.available_width() - 8.0) / 3.0;
+                for b in row {
+                    let col = hex_color(&b.color);
+                    let short: String = b.label.chars().take(10).collect();
+                    let btn = egui::Button::new(RichText::new(short).strong().size(11.5).color(Color32::WHITE))
+                        .fill(if b.id == current_branch { col } else { col.gamma_multiply(0.28) });
+                    if ui.add_sized([btn_w, 30.0], btn).on_hover_text(&b.label).clicked() {
+                        clicked_branch = Some(b.id.clone());
+                    }
+                }
+            });
+        }
+        if let Some(id) = clicked_branch {
+            self.set_branch(&id);
+        }
 
         ui.add_space(4.0);
 
@@ -2568,42 +2686,49 @@ impl TelecommandeApp {
                     .rounding(Rounding::same(8.0))
                     .inner_margin(egui::Margin::same(10.0))
                     .show(ui, |ui| {
-                        let cur_br = {
+                        // Le choix de branche se fait dans la rangée du haut (sélecteur unique) ;
+                        // ici : la branche active et ses textes par défaut
+                        let (cur_br, active) = {
                             let st = self.state.lock().unwrap();
-                            st.branch.clone()
+                            (st.branch.clone(), st.branches.iter().find(|b| b.id == st.branch).cloned())
                         };
-                        ui.label(RichText::new("🎛️ 1. CHOIX DE LA BRANCHE DU LIVE").strong().color(Color32::from_rgb(96, 165, 250)));
-                        ui.add_space(6.0);
-
-                        ui.vertical(|ui| {
-                            let w = (ui.available_width() - 6.0) / 2.0;
-
-                            ui.horizontal(|ui| {
-                                let b1 = egui::Button::new(RichText::new("💜 VSS & INCESTE").strong().size(11.5).color(Color32::WHITE))
-                                    .fill(if cur_br == "vss" { Color32::from_rgb(147, 51, 234) } else { Color32::from_rgb(38, 25, 52) })
-                                    .stroke(if cur_br == "vss" { Stroke::new(2.0_f32, Color32::from_rgb(216, 180, 254)) } else { Stroke::NONE });
-                                if ui.add_sized([w, 32.0], b1).clicked() { self.set_branch("vss"); }
-
-                                let b2 = egui::Button::new(RichText::new("✊ POLITISER (Antifa)").strong().size(11.5).color(Color32::WHITE))
-                                    .fill(if cur_br == "politique" { Color32::from_rgb(220, 38, 38) } else { Color32::from_rgb(52, 25, 25) })
-                                    .stroke(if cur_br == "politique" { Stroke::new(2.0_f32, Color32::from_rgb(252, 165, 165)) } else { Stroke::NONE });
-                                if ui.add_sized([w, 32.0], b2).clicked() { self.set_branch("politique"); }
-                            });
-
-                            ui.add_space(4.0);
-
-                            ui.horizontal(|ui| {
-                                let b3 = egui::Button::new(RichText::new("🎸 MUSIQUE LIVE").strong().size(11.5).color(Color32::WHITE))
-                                    .fill(if cur_br == "musique" { Color32::from_rgb(217, 119, 6) } else { Color32::from_rgb(52, 35, 18) })
-                                    .stroke(if cur_br == "musique" { Stroke::new(2.0_f32, Color32::from_rgb(253, 186, 116)) } else { Stroke::NONE });
-                                if ui.add_sized([w, 32.0], b3).clicked() { self.set_branch("musique"); }
-
-                                let b4 = egui::Button::new(RichText::new("☕ CHILL & DÉTENTE").strong().size(11.5).color(Color32::WHITE))
-                                    .fill(if cur_br == "chill" { Color32::from_rgb(16, 185, 129) } else { Color32::from_rgb(20, 48, 38) })
-                                    .stroke(if cur_br == "chill" { Stroke::new(2.0_f32, Color32::from_rgb(110, 231, 183)) } else { Stroke::NONE });
-                                if ui.add_sized([w, 32.0], b4).clicked() { self.set_branch("chill"); }
-                            });
-                        });
+                        match active {
+                            Some(b) => {
+                                ui.horizontal(|ui| {
+                                    ui.label(RichText::new("🎛️ 1. BRANCHE ACTIVE :").strong().color(Color32::from_rgb(96, 165, 250)));
+                                    ui.label(RichText::new(&b.label).strong().size(14.0).color(hex_color(&b.color)));
+                                });
+                                ui.label(
+                                    RichText::new("Changer de branche : rangée du haut ou F9 / F10 / F11. Renommer, recolorer, ajouter : onglet Préférences.")
+                                        .size(10.0)
+                                        .color(Color32::GRAY),
+                                );
+                                ui.add_space(4.0);
+                                ui.horizontal(|ui| {
+                                    if ui.button("↺ Remettre les textes par défaut").clicked() {
+                                        self.set_branch(&cur_br);
+                                    }
+                                    if ui
+                                        .button("💾 Garder les textes actuels comme défaut")
+                                        .on_hover_text("Le sujet et le sous-titre affichés deviennent ceux de cette branche")
+                                        .clicked()
+                                    {
+                                        if let Ok(mut st) = self.state.lock() {
+                                            let (topic, sub) = (st.custom_topic.clone(), st.custom_sub.clone());
+                                            if let Some(cfg) = st.branches.iter_mut().find(|x| x.id == cur_br) {
+                                                cfg.topic = topic;
+                                                cfg.sub = sub;
+                                            }
+                                            save_branches_file(&st.branches);
+                                            save_state_json(&st);
+                                        }
+                                    }
+                                });
+                            }
+                            None => {
+                                ui.label(RichText::new("🎛️ 1. BRANCHE ACTIVE : aucune (choisissez-en une dans la rangée du haut)").strong().color(Color32::from_rgb(96, 165, 250)));
+                            }
+                        }
                     });
 
                 ui.add_space(8.0);
@@ -4910,13 +5035,12 @@ impl TelecommandeApp {
     // ⚙️ ONGLET DÉDIÉ : PRÉFÉRENCES, 8 DÉCORS & AUTO-TAPOTEUR
     // =========================================================
     fn render_tab_preferences(&mut self, ui: &mut egui::Ui) {
-        let (mut host_acc, mut helper_acc, mut tapper_cfg, bgs) = {
+        let (mut host_acc, mut helper_acc, mut tapper_cfg) = {
             let st = self.state.lock().unwrap();
             (
                 st.tiktok_host_account.clone(),
                 st.tiktok_helper_account.clone(),
                 st.tapper_config.clone(),
-                st.custom_backgrounds.clone(),
             )
         };
 
@@ -4954,49 +5078,8 @@ impl TelecommandeApp {
 
         ui.add_space(8.0);
 
-        // 2. Gestionnaire des 8 Décors / Images de Fond (Sans Recompilation)
-        egui::Frame::none()
-            .fill(Color32::from_rgb(22, 25, 36))
-            .stroke(Stroke::new(1.2_f32, Color32::from_rgb(59, 130, 246)))
-            .rounding(Rounding::same(8.0))
-            .inner_margin(egui::Margin::same(12.0))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("🖼️ GESTIONNAIRE DES 8 DÉCORS (IMAGES DE FOND)").strong().size(13.0).color(Color32::from_rgb(147, 197, 253)));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("🔄 Décors par Défaut").clicked() {
-                            if let Ok(mut st) = self.state.lock() {
-                                st.custom_backgrounds = CustomBackgrounds::default();
-                                save_state_json(&st);
-                            }
-                        }
-                    });
-                });
-                ui.label(RichText::new("Modifiez vos 8 décors en 1 clic sans jamais recompiler l'application.").size(10.5).color(Color32::from_rgb(156, 163, 175)));
-                ui.add_space(8.0);
-
-                // Section 9:16 Vertical
-                ui.label(RichText::new("📱 4 DÉCORS VERTICAUX (9:16 - 1080x1920) :").strong().size(11.5).color(Color32::WHITE));
-                ui.add_space(4.0);
-
-                Self::render_bg_slot(ui, &self.state, "vss_9_16", "💜 VSS & Écoute (9:16)", &bgs.vss_9_16);
-                Self::render_bg_slot(ui, &self.state, "politique_9_16", "✊ Débat Politique (9:16)", &bgs.politique_9_16);
-                Self::render_bg_slot(ui, &self.state, "musique_9_16", "🎸 Musique & Sons (9:16)", &bgs.musique_9_16);
-                Self::render_bg_slot(ui, &self.state, "chill_9_16", "☕ Chill & Détente (9:16)", &bgs.chill_9_16);
-
-                ui.add_space(8.0);
-                ui.separator();
-                ui.add_space(4.0);
-
-                // Section 16:9 Horizontal
-                ui.label(RichText::new("🖥️ 4 DÉCORS PAYSAGE (16:9 - 1920x1080) :").strong().size(11.5).color(Color32::WHITE));
-                ui.add_space(4.0);
-
-                Self::render_bg_slot(ui, &self.state, "vss_16_9", "💜 VSS & Écoute (16:9)", &bgs.vss_16_9);
-                Self::render_bg_slot(ui, &self.state, "politique_16_9", "✊ Débat Politique (16:9)", &bgs.politique_16_9);
-                Self::render_bg_slot(ui, &self.state, "musique_16_9", "🎸 Musique & Sons (16:9)", &bgs.musique_16_9);
-                Self::render_bg_slot(ui, &self.state, "chill_16_9", "☕ Chill & Détente (16:9)", &bgs.chill_16_9);
-            });
+        // 2. Branches du live (noms, couleurs, textes, fonds) — remplace l'ancien gestionnaire à 8 décors fixes
+        self.render_branch_editor(ui);
 
         ui.add_space(8.0);
 
@@ -5092,44 +5175,172 @@ impl TelecommandeApp {
             });
     }
 
-    fn render_bg_slot(ui: &mut egui::Ui, state: &Arc<Mutex<FullLiveState>>, slot_name: &str, label: &str, current_path: &str) {
+    /// Ligne « fond d'écran » : chemin actuel + bouton qui copie l'image choisie dans assets/
+    fn render_bg_picker(ui: &mut egui::Ui, label: &str, slot_name: &str, current: &mut String) {
         ui.horizontal(|ui| {
             ui.label(RichText::new(label).size(11.0).color(Color32::from_rgb(229, 231, 235)));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("📂 Parcourir...").clicked() {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Images (JPG, PNG, WEBP)", &["jpg", "jpeg", "png", "webp"])
-                        .pick_file() {
-                        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("jpg");
-                        let dest_name = format!("custom_bg_{}.{}", slot_name, ext);
-                        let dest_full = app_path("assets").join(&dest_name);
-                        if let Ok(_) = std::fs::copy(&path, &dest_full) {
-                            let url_with_v = format!("/assets/{}?v={}", dest_name, now_secs() as u64);
-                            if let Ok(mut st) = state.lock() {
-                                match slot_name {
-                                    "vss_9_16" => st.custom_backgrounds.vss_9_16 = url_with_v,
-                                    "politique_9_16" => st.custom_backgrounds.politique_9_16 = url_with_v,
-                                    "musique_9_16" => st.custom_backgrounds.musique_9_16 = url_with_v,
-                                    "chill_9_16" => st.custom_backgrounds.chill_9_16 = url_with_v,
-                                    "vss_16_9" => st.custom_backgrounds.vss_16_9 = url_with_v,
-                                    "politique_16_9" => st.custom_backgrounds.politique_16_9 = url_with_v,
-                                    "musique_16_9" => st.custom_backgrounds.musique_16_9 = url_with_v,
-                                    "chill_16_9" => st.custom_backgrounds.chill_16_9 = url_with_v,
-                                    _ => {}
-                                }
-                                save_state_json(&st);
-                            }
-                        }
+            if ui.button("📂 Choisir…").clicked() {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("Images (JPG, PNG, WEBP)", &["jpg", "jpeg", "png", "webp"])
+                    .pick_file()
+                {
+                    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("jpg").to_lowercase();
+                    let dest_name = format!("custom_bg_{}.{}", slot_name, ext);
+                    if std::fs::copy(&path, app_path("assets").join(&dest_name)).is_ok() {
+                        *current = format!("/assets/{}?v={}", dest_name, now_secs() as u64);
                     }
                 }
-                let short = if current_path.len() > 30 {
-                    format!("...{}", &current_path[current_path.len() - 27..])
-                } else {
-                    current_path.to_string()
-                };
-                ui.label(RichText::new(short).size(10.0).color(Color32::from_rgb(156, 163, 175)));
-            });
+            }
+            // Nom du fichier seul (découpe sûre même avec des caractères accentués)
+            let short = current.split('?').next().unwrap_or("").rsplit('/').next().unwrap_or("").to_string();
+            ui.label(RichText::new(short).size(10.0).color(Color32::from_rgb(156, 163, 175)));
         });
+    }
+
+    /// Éditeur des branches : nom, couleurs, textes, mode, urgences, fonds ; ajout / ordre / suppression.
+    /// Les modifications restent en brouillon jusqu'à « Enregistrer ».
+    fn render_branch_editor(&mut self, ui: &mut egui::Ui) {
+        let saved = self.state.lock().map(|st| st.branches.clone()).unwrap_or_default();
+        let mut draft = self.branches_draft.take().unwrap_or_else(|| saved.clone());
+        let mut move_up: Option<usize> = None;
+        let mut remove: Option<usize> = None;
+
+        egui::Frame::none()
+            .fill(Color32::from_rgb(22, 25, 36))
+            .stroke(Stroke::new(1.2_f32, Color32::from_rgb(59, 130, 246)))
+            .rounding(Rounding::same(8.0))
+            .inner_margin(egui::Margin::same(12.0))
+            .show(ui, |ui| {
+                ui.label(RichText::new("🎛️ BRANCHES DU LIVE").strong().size(13.0).color(Color32::from_rgb(147, 197, 253)));
+                ui.label(
+                    RichText::new("Nom des boutons, couleurs, textes et fonds de chaque branche. Les 3 premières ont les raccourcis F9, F10, F11.")
+                        .size(10.5)
+                        .color(Color32::from_rgb(156, 163, 175)),
+                );
+                ui.add_space(6.0);
+
+                let count = draft.len();
+                for (i, b) in draft.iter_mut().enumerate() {
+                    let key = branch_hotkey_label(i).map(|k| format!(" [{}]", k)).unwrap_or_default();
+                    let header = RichText::new(format!("{}{}", b.label, key)).strong().color(hex_color(&b.color));
+                    egui::CollapsingHeader::new(header).id_salt(("branch_editor", i)).show(ui, |ui| {
+                        egui::Grid::new(("branch_grid", i)).num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
+                            ui.label("Nom du bouton");
+                            ui.text_edit_singleline(&mut b.label);
+                            ui.end_row();
+                            for (name, hex) in [("Couleur principale", &mut b.color), ("Couleur d'accent", &mut b.accent)] {
+                                ui.label(name);
+                                let mut rgb = hex_color(hex).to_array();
+                                let mut rgb3 = [rgb[0], rgb[1], rgb[2]];
+                                if ui.color_edit_button_srgb(&mut rgb3).changed() {
+                                    rgb[..3].copy_from_slice(&rgb3);
+                                    *hex = format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2]);
+                                }
+                                ui.end_row();
+                            }
+                            ui.label("Étiquette (bas de scène)");
+                            ui.text_edit_singleline(&mut b.tag);
+                            ui.end_row();
+                            ui.label("Titre d'en-tête");
+                            ui.text_edit_singleline(&mut b.scene_title);
+                            ui.end_row();
+                            ui.label("Sujet par défaut");
+                            ui.text_edit_singleline(&mut b.topic);
+                            ui.end_row();
+                            ui.label("Sous-titre par défaut");
+                            ui.text_edit_singleline(&mut b.sub);
+                            ui.end_row();
+                            ui.label("Mode du bandeau");
+                            egui::ComboBox::from_id_salt(("branch_mode", i))
+                                .selected_text(match b.box_mode.as_str() {
+                                    "musique" => "Musique (titre en cours)",
+                                    "sujet" => "Sujet",
+                                    _ => "Combiné",
+                                })
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut b.box_mode, "combine".to_string(), "Combiné");
+                                    ui.selectable_value(&mut b.box_mode, "musique".to_string(), "Musique (titre en cours)");
+                                    ui.selectable_value(&mut b.box_mode, "sujet".to_string(), "Sujet");
+                                });
+                            ui.end_row();
+                            ui.label("Numéros d'urgence");
+                            ui.checkbox(&mut b.auto_emergency, "Afficher automatiquement sur cette branche");
+                            ui.end_row();
+                        });
+                        Self::render_bg_picker(ui, "Fond 9:16", &format!("{}_9_16", b.id), &mut b.bg_9_16);
+                        Self::render_bg_picker(ui, "Fond 16:9", &format!("{}_16_9", b.id), &mut b.bg_16_9);
+                        ui.horizontal(|ui| {
+                            if i > 0 && ui.button("⬆ Monter").clicked() {
+                                move_up = Some(i);
+                            }
+                            if count > 1 && ui.button("🗑 Supprimer").clicked() {
+                                remove = Some(i);
+                            }
+                            ui.label(RichText::new(format!("id : {}", b.id)).size(9.5).color(Color32::DARK_GRAY));
+                        });
+                    });
+                }
+
+                if let Some(i) = move_up {
+                    draft.swap(i - 1, i);
+                }
+                if let Some(i) = remove {
+                    draft.remove(i);
+                }
+
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if ui.button("➕ Ajouter une branche").clicked() {
+                        let mut n = draft.len() + 1;
+                        while draft.iter().any(|b| b.id == format!("branche{}", n)) {
+                            n += 1;
+                        }
+                        let first = draft.first().cloned();
+                        draft.push(BranchConfig {
+                            id: format!("branche{}", n),
+                            label: format!("✨ Branche {}", n),
+                            color: "#3b82f6".into(),
+                            accent: "#93c5fd".into(),
+                            tag: "✨ NOUVELLE BRANCHE".into(),
+                            scene_title: "ET SI… BRISER LE SILENCE".into(),
+                            topic: "NOUVEAU SUJET".into(),
+                            sub: "Sous-titre à personnaliser".into(),
+                            box_mode: "combine".into(),
+                            auto_emergency: false,
+                            bg_9_16: first.as_ref().map(|f| f.bg_9_16.clone()).unwrap_or_default(),
+                            bg_16_9: first.as_ref().map(|f| f.bg_16_9.clone()).unwrap_or_default(),
+                        });
+                    }
+                    if ui.button("🔄 Rétablir les 4 branches d'origine").clicked() {
+                        draft = default_branches(&CustomBackgrounds::default());
+                    }
+                });
+
+                let dirty = draft != saved;
+                if dirty {
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Modifications non enregistrées").color(Color32::from_rgb(250, 204, 21)));
+                        if ui.button(RichText::new("💾 Enregistrer").strong()).clicked() {
+                            if let Ok(mut st) = self.state.lock() {
+                                st.branches = draft.clone();
+                                save_branches_file(&st.branches);
+                                st.branch_timestamp = now_secs();
+                                save_state_json(&st);
+                            }
+                            draft = Vec::new(); // repartira de la version enregistrée
+                        }
+                        if ui.button("Annuler").clicked() {
+                            draft = Vec::new();
+                        }
+                    });
+                }
+            });
+
+        // Brouillon conservé seulement s'il diffère de la version enregistrée
+        if !draft.is_empty() && draft != saved {
+            self.branches_draft = Some(draft);
+        }
     }
 
     fn render_tab_soundboard(&mut self, ui: &mut egui::Ui) {
@@ -5992,6 +6203,8 @@ fn main() -> eframe::Result<()> {
     } else {
         FullLiveState::default()
     };
+    let mut initial_state = initial_state;
+    load_branches(&mut initial_state);
     let state = Arc::new(Mutex::new(initial_state));
     let audio_peak_atomic = Arc::new(std::sync::atomic::AtomicU32::new(0));
 

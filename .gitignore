@@ -26,6 +26,9 @@ __pycache__/
 # Raccourci de lancement (chemins propres à chaque PC, recréé par tools/creer_raccourci.ps1)
 *.lnk
 
+# Profil Edge dédié aux fenêtres de scène (cache navigateur)
+edge_scene_profile/
+
 # Journaux de live (contiennent les demandes d'aide : privés)
 journaux/
 

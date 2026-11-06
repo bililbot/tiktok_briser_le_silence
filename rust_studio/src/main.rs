@@ -753,6 +753,25 @@ fn install_windows_emoji_fonts(ctx: &egui::Context) {
     ctx.set_fonts(fonts);
 }
 
+/// Ouvre une fenêtre capturable (scène, presse, urgences) dans un Edge **dédié** (profil séparé).
+/// Sans profil séparé, l'Edge déjà lancé en arrière-plan (démarrage rapide) ignore toutes les options :
+/// la page cachée derrière TikTok LIVE Studio se met alors en veille et ne se met plus à jour
+/// (ex. changement de branche visible seulement quand on revient sur la fenêtre).
+fn spawn_capture_window(edge: &str, url: &str, w: u32, h: u32, x: i32, y: i32) {
+    let _ = Command::new(edge)
+        .arg(format!("--user-data-dir={}", app_path("edge_scene_profile").display()))
+        .arg("--no-first-run")
+        .arg("--no-default-browser-check")
+        .arg(format!("--app={}", url))
+        .arg(format!("--window-size={},{}", w, h))
+        .arg(format!("--window-position={},{}", x, y))
+        .arg("--disable-background-timer-throttling")
+        .arg("--disable-backgrounding-occluded-windows")
+        .arg("--disable-renderer-backgrounding")
+        .arg("--disable-features=CalculateNativeWinOcclusion,IntensiveWakeUpThrottling")
+        .spawn();
+}
+
 /// Fenêtres de scène ouvertes (titre « STUDIO_LIVE_TIKTOK 9:16 / 16:9 ») avec leur état réduit ou non
 fn stage_windows() -> Vec<(windows::Win32::Foundation::HWND, bool, String)> {
     use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
@@ -1451,15 +1470,7 @@ impl TelecommandeApp {
         ];
         for p in edge_paths {
             if std::path::Path::new(p).exists() {
-                let _ = Command::new(p)
-                    .arg(format!("--app={}", url))
-                    .arg("--window-size=608,1080")
-                    .arg("--window-position=20,0")
-                    .arg("--disable-background-timer-throttling")
-                    .arg("--disable-backgrounding-occluded-windows")
-                    .arg("--disable-renderer-backgrounding")
-                    .arg("--disable-features=CalculateNativeWinOcclusion,IntensiveWakeUpThrottling")
-                    .spawn();
+                spawn_capture_window(p, url, 608, 1080, 20, 0);
                 place_stage_window_when_ready("9:16");
                 return;
             }
@@ -1478,18 +1489,7 @@ impl TelecommandeApp {
         ];
         for p in edge_paths {
             if std::path::Path::new(p).exists() {
-                let _ = Command::new(p)
-                    .arg(format!("--app={}", url))
-                    // Pas en plein écran : sinon elle recouvre TikTok LIVE Studio, on la réduit,
-                    // et une fenêtre réduite ne peut plus être capturée (elle disparaît de la liste).
-                    // Taille en points : 1280×720 = 1600×900 pixels à 125 %, tient sur un écran 1080p jusqu'à 125 %
-                    .arg("--window-size=1280,720")
-                    .arg("--window-position=60,40")
-                    .arg("--disable-background-timer-throttling")
-                    .arg("--disable-backgrounding-occluded-windows")
-                    .arg("--disable-renderer-backgrounding")
-                    .arg("--disable-features=CalculateNativeWinOcclusion,IntensiveWakeUpThrottling")
-                    .spawn();
+                spawn_capture_window(p, url, 1280, 720, 60, 40);
                 place_stage_window_when_ready("16:9");
                 return;
             }
@@ -1506,15 +1506,7 @@ impl TelecommandeApp {
         ];
         for p in edge_paths {
             if std::path::Path::new(p).exists() {
-                let _ = Command::new(p)
-                    .arg(format!("--app={}", url))
-                    .arg("--window-size=680,780")
-                    .arg("--window-position=100,80")
-                    .arg("--disable-background-timer-throttling")
-                    .arg("--disable-backgrounding-occluded-windows")
-                    .arg("--disable-renderer-backgrounding")
-                    .arg("--disable-features=CalculateNativeWinOcclusion,IntensiveWakeUpThrottling")
-                    .spawn();
+                spawn_capture_window(p, url, 680, 780, 100, 80);
                 return;
             }
         }
@@ -1614,15 +1606,7 @@ impl TelecommandeApp {
         ];
         for p in edge_paths {
             if std::path::Path::new(p).exists() {
-                let _ = Command::new(p)
-                    .arg(format!("--app={}", url))
-                    .arg("--window-size=520,320")
-                    .arg("--window-position=80,120")
-                    .arg("--disable-background-timer-throttling")
-                    .arg("--disable-backgrounding-occluded-windows")
-                    .arg("--disable-renderer-backgrounding")
-                    .arg("--disable-features=CalculateNativeWinOcclusion,IntensiveWakeUpThrottling")
-                    .spawn();
+                spawn_capture_window(p, url, 520, 320, 80, 120);
                 return;
             }
         }

@@ -168,6 +168,21 @@ Le lecteur YouTube des overlays (`stage_solution_b.html` et `stage_16_9.html`) :
 
 ---
 
+## 💜 Remerciements Automatiques (Cadeaux, Partages, Follows)
+
+* **Pont chat** (`tiktok_chat_bridge.py`, TikTokLive 7.x) : il envoie à `POST /chat_ingest` des événements :
+  * `gift` (`gift`, `count`) : un cadeau en série n'est envoyé qu'une fois, à la fin de la série (`event.streaking`), avec le total `repeat_count` ;
+  * `share` et `follow`.
+* **Régie** : bloc « 💜 Remerciements auto » dans l'onglet **[ Régie ]**, avec une case d'activation (`thanks_enabled`, activée par défaut) et un bouton « 👁 Aperçu » qui envoie un faux cadeau.
+* **État** : `thanks_seq` (compteur) et `thanks_queue` (les 20 derniers `ThanksItem`). Rien n'est ajouté pendant le bouclier anti-raid.
+* **Scènes** :
+  * une bulle `#thanksBubble` en bas à droite affiche « 💜 Merci @x pour 5 × Rose ! », « 🔁 Merci @x pour le partage ! » ou « ➕ Bienvenue @x, merci pour le follow ! » ;
+  * les remerciements passent un par un, 3,5 s chacun, avec au plus 6 en attente (les plus anciens sont abandonnés en cas de rafale) ;
+  * seuls les remerciements arrivés après l'ouverture de la scène sont joués, donc rien n'est rejoué quand OBS recharge la source ;
+  * les pseudos sont insérés comme du texte brut, donc un pseudo contenant du HTML ne peut pas s'exécuter.
+
+---
+
 ## 👆 6. Spécification Technique de l'Auto-Tappeur
 
 Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).

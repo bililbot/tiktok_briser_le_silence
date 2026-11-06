@@ -1662,6 +1662,7 @@
                 pinnedWidget.style.display = (st.pinned_visible && st.pinned_text && !st.shield_active) ? "block" : "none";
                 if (typeof renderShield === "function") renderShield(st);
                 if (typeof setTimerState === "function") setTimerState(st);
+                if (typeof queueThanks === "function") queueThanks(st);
                 if (st.pinned_visible && st.pinned_text) {
                     document.getElementById("pinnedAuthorDisplay").textContent = st.pinned_author || "Spectateur";
                     const msgEl = document.getElementById("pinnedMsgDisplay");
@@ -1877,6 +1878,54 @@
         setInterval(syncWithRustBackend, 250);
         syncWithRustBackend();
     </script>
+    <!-- Remerciements auto : bulle en bas à droite, une à la fois pendant 3,5 s -->
+    <style>
+        #thanksBubble { position: fixed; right: 3vmin; bottom: 14vh; z-index: 9100; max-width: 78vmin; padding: 2.2vmin 3.4vmin; border-radius: 3vmin; font-size: 4.2vmin !important; background: linear-gradient(135deg, rgba(88, 28, 135, 0.95), rgba(30, 10, 45, 0.95)); border: 0.3vmin solid #c084fc; box-shadow: 0 0 2.5vmin rgba(192, 132, 252, 0.55); color: #fff; font-family: 'Space Grotesk', sans-serif; font-size: 2.3vmin; font-weight: 700; line-height: 1.25; opacity: 0; transform: translateX(120%); transition: opacity 0.35s ease, transform 0.35s ease; pointer-events: none; }
+        #thanksBubble.show { opacity: 1; transform: translateX(0); }
+        #thanksBubble .th-name { color: #f5d0fe; font-weight: 800; }
+    </style>
+    <div id="thanksBubble"></div>
+    <script>
+        // Seuls les remerciements arrivés après l'ouverture de la scène sont joués (pas de rejeu au rechargement OBS)
+        let lastThanksId = null;
+        const thanksPending = [];
+        let thanksBusy = false;
+        function queueThanks(st) {
+            const list = st.thanks_queue || [];
+            const maxId = list.reduce((m, t) => Math.max(m, t.id), 0);
+            if (lastThanksId === null) { lastThanksId = maxId; return; }
+            for (const t of list) {
+                if (t.id > lastThanksId) thanksPending.push(t);
+            }
+            lastThanksId = Math.max(lastThanksId, maxId);
+            while (thanksPending.length > 6) thanksPending.shift();
+            if (st.shield_active) thanksPending.length = 0;
+            if (!thanksBusy) showNextThanks();
+        }
+        function showNextThanks() {
+            const t = thanksPending.shift();
+            const el = document.getElementById("thanksBubble");
+            if (!t) { thanksBusy = false; return; }
+            thanksBusy = true;
+            el.textContent = "";
+            const name = document.createElement("span");
+            name.className = "th-name";
+            name.textContent = t.author;
+            if (t.kind === "gift") {
+                el.append("💜 Merci ", name, " pour " + (t.count > 1 ? t.count + " × " : "") + (t.gift || "le cadeau") + " !");
+            } else if (t.kind === "share") {
+                el.append("🔁 Merci ", name, " pour le partage !");
+            } else {
+                el.append("➕ Bienvenue ", name, ", merci pour le follow !");
+            }
+            el.classList.add("show");
+            setTimeout(() => {
+                el.classList.remove("show");
+                setTimeout(showNextThanks, 450);
+            }, 3500);
+        }
+    </script>
+
     <!-- Chrono de débat : pastille en haut au centre, orange à 30 s, rouge clignotant à 15 s -->
     <style>
         #debateTimer { position: fixed; top: 2.2vh; left: 50%; transform: translateX(-50%); z-index: 9000; display: none; min-width: 22vmin; padding: 1.2vmin 2.4vmin 1.4vmin; border-radius: 1.6vmin; background: rgba(10, 10, 14, 0.88); border: 0.3vmin solid #facc15; box-shadow: 0 0 2.5vmin rgba(250, 204, 21, 0.35); color: #fff; text-align: center; font-family: 'Space Grotesk', sans-serif; }

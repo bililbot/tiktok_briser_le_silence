@@ -53,7 +53,7 @@ def main():
 
     try:
         from TikTokLive import TikTokLiveClient
-        from TikTokLive.events import ConnectEvent, CommentEvent, DisconnectEvent, LikeEvent
+        from TikTokLive.events import ConnectEvent, CommentEvent, DisconnectEvent, GiftEvent, ShareEvent, FollowEvent
     except ImportError:
         set_bridge_status("❌ Module TikTokLive non installé (pip install TikTokLive)")
         return
@@ -90,6 +90,51 @@ def main():
                     "avatar": avatar_url,
                     "timestamp": int(time.time())
                 })
+        except Exception:
+            pass
+
+    def user_payload(user) -> dict:
+        nick = getattr(user, "nickname", "") or getattr(user, "unique_id", "") or "Spectateur"
+        uid = getattr(user, "unique_id", "")
+        avatar_url = ""
+        try:
+            if user.avatar_thumb and user.avatar_thumb.m_urls:
+                avatar_url = user.avatar_thumb.m_urls[0]
+        except Exception:
+            avatar_url = ""
+        return {"author": nick, "handle": f"@{uid}" if uid else "", "avatar": avatar_url}
+
+    @client.on(GiftEvent)
+    async def on_gift(event: GiftEvent):
+        try:
+            # Cadeau en série (combo) : on attend le dernier événement qui porte le total
+            if event.streaking:
+                return
+            payload = user_payload(event.user)
+            payload.update({
+                "type": "gift",
+                "gift": getattr(event.gift, "name", "") or "cadeau",
+                "count": max(1, int(getattr(event, "repeat_count", 1) or 1)),
+            })
+            send_event_to_rust(payload)
+        except Exception:
+            pass
+
+    @client.on(ShareEvent)
+    async def on_share(event: ShareEvent):
+        try:
+            payload = user_payload(event.user)
+            payload["type"] = "share"
+            send_event_to_rust(payload)
+        except Exception:
+            pass
+
+    @client.on(FollowEvent)
+    async def on_follow(event: FollowEvent):
+        try:
+            payload = user_payload(event.user)
+            payload["type"] = "follow"
+            send_event_to_rust(payload)
         except Exception:
             pass
 

@@ -146,6 +146,16 @@ pub fn default_emergency_numbers() -> Vec<EmergencyNumberItem> {
     ]
 }
 
+/// Remerciement à afficher sur les scènes (cadeau, partage ou follow reçu via le pont chat)
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct ThanksItem {
+    pub id: u64,
+    pub kind: String, // "gift" | "share" | "follow"
+    pub author: String,
+    pub gift: String,
+    pub count: u32,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct ChatCommentItem {
     pub author: String,
@@ -400,6 +410,13 @@ pub struct FullLiveState {
     pub timer_remaining_secs: f64, // temps restant figé, valable en pause
     #[serde(default)]
     pub timer_gong_done: bool,
+    // Remerciements automatiques : les scènes affichent les éléments dont l'id est plus récent que le dernier vu
+    #[serde(default = "default_true")]
+    pub thanks_enabled: bool,
+    #[serde(default)]
+    pub thanks_seq: u64,
+    #[serde(default)]
+    pub thanks_queue: Vec<ThanksItem>,
     pub pinned_visible: bool,
     pub pinned_author: String,
     pub pinned_text: String,
@@ -485,6 +502,16 @@ fn default_tiktok_host() -> String { "@lebyb".to_string() }
 fn default_tiktok_helper() -> String { "@second_compte".to_string() }
 
 fn default_true() -> bool { true }
+
+/// Ajoute un remerciement à la file (20 derniers gardés, les scènes ne rejouent que les nouveaux)
+fn push_thanks(st: &mut FullLiveState, kind: &str, author: String, gift: String, count: u32) {
+    st.thanks_seq += 1;
+    let id = st.thanks_seq;
+    st.thanks_queue.push(ThanksItem { id, kind: kind.to_string(), author, gift, count });
+    if st.thanks_queue.len() > 20 {
+        st.thanks_queue.remove(0);
+    }
+}
 fn default_22() -> u32 { 22 }
 fn default_14() -> u32 { 14 }
 
@@ -515,6 +542,9 @@ impl Default for FullLiveState {
             timer_end_ts: 0.0,
             timer_remaining_secs: 0.0,
             timer_gong_done: false,
+            thanks_enabled: true,
+            thanks_seq: 0,
+            thanks_queue: Vec::new(),
             pinned_visible: false,
             pinned_author: String::new(),
             pinned_text: String::new(),
@@ -2155,8 +2185,37 @@ impl TelecommandeApp {
         }
     }
 
+    /// Remerciements auto (cadeaux, partages, follows) : activation + bouton d'aperçu sur les scènes
+    fn render_thanks_controls(&mut self, ui: &mut egui::Ui) {
+        let mut enabled = self.state.lock().map(|st| st.thanks_enabled).unwrap_or(true);
+        egui::Frame::group(ui.style())
+            .fill(Color32::from_rgb(20, 22, 30))
+            .stroke(Stroke::new(1.2_f32, Color32::from_rgb(192, 132, 252)))
+            .rounding(Rounding::same(8.0))
+            .inner_margin(egui::Margin::same(10.0))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("💜 REMERCIEMENTS AUTO").strong().color(Color32::from_rgb(216, 180, 254)));
+                    if ui.checkbox(&mut enabled, "Cadeaux, partages & follows").changed() {
+                        if let Ok(mut st) = self.state.lock() {
+                            st.thanks_enabled = enabled;
+                            save_state_json(&st);
+                        }
+                    }
+                    if ui.button("👁 Aperçu").clicked() {
+                        if let Ok(mut st) = self.state.lock() {
+                            push_thanks(&mut st, "gift", "Spectateur test".to_string(), "Rose".to_string(), 3);
+                            save_state_json(&st);
+                        }
+                    }
+                });
+            });
+    }
+
     fn render_tab_regie(&mut self, ui: &mut egui::Ui) {
                 self.render_debate_timer(ui);
+                ui.add_space(8.0);
+                self.render_thanks_controls(ui);
                 ui.add_space(8.0);
 
                 // =========================================================
@@ -5016,6 +5075,13 @@ fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveSt
                     if ev_type == "status" {
                         if let Some(s) = val.get("status").and_then(|v| v.as_str()) {
                             st.chat_status = s.to_string();
+                        }
+                    } else if ev_type == "gift" || ev_type == "share" || ev_type == "follow" {
+                        if st.thanks_enabled && !st.shield_active {
+                            let author = val.get("author").and_then(|v| v.as_str()).unwrap_or("Spectateur").to_string();
+                            let gift = val.get("gift").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                            let count = val.get("count").and_then(|v| v.as_u64()).unwrap_or(1).max(1) as u32;
+                            push_thanks(&mut st, ev_type, author, gift, count);
                         }
                     } else if ev_type == "comment" {
                         let author = val.get("author").and_then(|v| v.as_str()).unwrap_or("Spectateur").to_string();

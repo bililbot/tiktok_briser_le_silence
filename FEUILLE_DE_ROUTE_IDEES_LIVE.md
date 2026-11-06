@@ -25,7 +25,7 @@ Ce document répertorie les concepts et fonctionnalités validés à implémente
 
 ---
 
-### 🌹 3. Pop-up Automatique de Remerciement (Cadeaux & Partages)
+### 🌹 3. Pop-up Automatique de Remerciement (Cadeaux & Partages) — ✅ FAIT (+ follows, voir doc technique)
 * **Objectif** : Valoriser les spectateurs et stimuler l'algorithme sans interrompre la parole du streamer.
 * **Fonctions** :
   * Détection des événements cadeaux (`GiftEvent`) et partages (`ShareEvent`).

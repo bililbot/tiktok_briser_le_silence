@@ -149,6 +149,25 @@ Le lecteur YouTube des overlays (`stage_solution_b.html` et `stage_16_9.html`) :
 
 ---
 
+## ⏱️ Chrono de Débat
+
+* **Commandes** : un bloc en tête de l'onglet **[ Régie ]**, avec :
+  * un nom d'intervenant·e (`timer_label`) ;
+  * les préréglages `▶ 1 min`, `▶ 3 min`, `▶ 5 min` ;
+  * les boutons `+30 s`, `⏸ Pause` / `▶ Reprendre` et `⏹ Stop` ;
+  * le temps restant affiché en direct.
+* **État** (`#[serde(default)]`) : `timer_active`, `timer_running`, `timer_total_secs`, `timer_end_ts` (heure de fin, epoch s), `timer_remaining_secs` (figé en pause), `timer_gong_done`.
+* **Thread dédié** (toutes les 200 ms) :
+  * à 0, il déclenche le jingle synthé `gong` via le mécanisme `jingle_cmd_id` existant ;
+  * 8 s après la fin, il masque le chrono.
+* **Scènes** :
+  * pastille `#debateTimer` en haut au centre, avec le nom, le décompte `mm:ss` et une barre de progression ;
+  * jaune par défaut, orange à 30 s, rouge clignotant à 15 s, puis « ⏰ TEMPS ÉCOULÉ » à 0 ;
+  * la pastille calcule le temps restant elle-même à partir de `timer_end_ts`, toutes les 200 ms, pour un décompte fluide ;
+  * elle est masquée quand le bouclier est actif.
+
+---
+
 ## 👆 6. Spécification Technique de l'Auto-Tappeur
 
 Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).

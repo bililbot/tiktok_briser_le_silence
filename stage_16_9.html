@@ -1374,6 +1374,26 @@
                 osc.connect(gain);
                 gain.connect(ctx.destination);
 
+                if (type === "gong") {
+                    // Gong de fin du chrono de débat : fondamentale grave + quinte, décroissance longue
+                    osc.type = "sine";
+                    osc.frequency.setValueAtTime(196, now);
+                    gain.gain.setValueAtTime(0.45 * vFactor, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 2.8);
+                    osc.start(now);
+                    osc.stop(now + 2.9);
+                    const osc2 = ctx.createOscillator();
+                    const gain2 = ctx.createGain();
+                    osc2.type = "sine";
+                    osc2.frequency.setValueAtTime(294, now);
+                    gain2.gain.setValueAtTime(0.2 * vFactor, now);
+                    gain2.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+                    osc2.connect(gain2);
+                    gain2.connect(ctx.destination);
+                    osc2.start(now);
+                    osc2.stop(now + 1.9);
+                    return;
+                }
                 if (type === "alerte") {
                     osc.type = "sawtooth";
                     osc.frequency.setValueAtTime(800, now);
@@ -1675,6 +1695,7 @@
                 const pinnedWidget = document.getElementById("pinnedCommentWidget");
                 pinnedWidget.style.display = (st.pinned_visible && st.pinned_text && !st.shield_active) ? "block" : "none";
                 if (typeof renderShield === "function") renderShield(st);
+                if (typeof setTimerState === "function") setTimerState(st);
                 if (st.pinned_visible && st.pinned_text) {
                     document.getElementById("pinnedAuthorDisplay").textContent = st.pinned_author || "Spectateur";
                     const msgEl = document.getElementById("pinnedMsgDisplay");
@@ -1890,6 +1911,44 @@
         setInterval(syncWithRustBackend, 250);
         syncWithRustBackend();
     </script>
+    <!-- Chrono de débat : pastille en haut au centre, orange à 30 s, rouge clignotant à 15 s -->
+    <style>
+        #debateTimer { position: fixed; top: 2.2vh; left: 50%; transform: translateX(-50%); z-index: 9000; display: none; min-width: 22vmin; padding: 1.2vmin 2.4vmin 1.4vmin; border-radius: 1.6vmin; background: rgba(10, 10, 14, 0.88); border: 0.3vmin solid #facc15; box-shadow: 0 0 2.5vmin rgba(250, 204, 21, 0.35); color: #fff; text-align: center; font-family: 'Space Grotesk', sans-serif; }
+        #debateTimer.show { display: block; }
+        #debateTimer .dt-label { font-size: 1.8vmin; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #fde68a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vmin; }
+        #debateTimer .dt-time { font-family: 'Anton', sans-serif; font-size: 5.2vmin; line-height: 1.1; }
+        #debateTimer .dt-bar { height: 0.8vmin; border-radius: 0.4vmin; background: rgba(255, 255, 255, 0.15); overflow: hidden; margin-top: 0.6vmin; }
+        #debateTimer .dt-fill { height: 100%; width: 100%; background: #facc15; transition: width 0.2s linear, background 0.3s; }
+        #debateTimer.warn { border-color: #f97316; box-shadow: 0 0 2.5vmin rgba(249, 115, 22, 0.5); }
+        #debateTimer.warn .dt-fill { background: #f97316; }
+        #debateTimer.danger { border-color: #ef4444; box-shadow: 0 0 3vmin rgba(239, 68, 68, 0.7); animation: dtBlink 1s steps(2, start) infinite; }
+        #debateTimer.danger .dt-fill { background: #ef4444; }
+        #debateTimer.paused .dt-time { opacity: 0.55; }
+        @keyframes dtBlink { to { border-color: rgba(239, 68, 68, 0.25); } }
+    </style>
+    <div id="debateTimer">
+        <div class="dt-label" id="dtLabel">Temps de parole</div>
+        <div class="dt-time" id="dtTime">00:00</div>
+        <div class="dt-bar"><div class="dt-fill" id="dtFill"></div></div>
+    </div>
+    <script>
+        // Le serveur donne l'heure de fin : la pastille est recalculée toutes les 200 ms pour un décompte fluide
+        let timerState = null;
+        function setTimerState(st) { timerState = st; }
+        setInterval(() => {
+            const el = document.getElementById("debateTimer");
+            const st = timerState;
+            if (!st || !st.timer_active || st.shield_active) { el.className = ""; return; }
+            const rem = Math.max(0, st.timer_running ? st.timer_end_ts - Date.now() / 1000 : st.timer_remaining_secs);
+            const secs = Math.ceil(rem);
+            const total = Math.max(1, st.timer_total_secs || 1);
+            document.getElementById("dtLabel").textContent = st.timer_label || "Temps de parole";
+            document.getElementById("dtTime").textContent = secs === 0 ? "⏰ TEMPS ÉCOULÉ" : String(Math.floor(secs / 60)).padStart(2, "0") + ":" + String(secs % 60).padStart(2, "0");
+            document.getElementById("dtFill").style.width = Math.min(100, (rem / total) * 100) + "%";
+            el.className = "show" + (secs <= 15 ? " danger" : secs <= 30 ? " warn" : "") + (st.timer_running ? "" : " paused");
+        }, 200);
+    </script>
+
     <!-- Bouclier anti-raid : écran de pause plein cadre piloté par st.shield_active (F8 dans la régie) -->
     <style>
         #shieldOverlay { position: fixed; inset: 0; z-index: 99999; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 2.5vh; padding: 6vw; text-align: center; background: radial-gradient(circle at center, rgb(40, 8, 12), rgb(5, 2, 4)); color: #fff; font-family: 'Space Grotesk', sans-serif; }

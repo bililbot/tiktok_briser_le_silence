@@ -385,6 +385,21 @@ pub struct FullLiveState {
     pub shield_active: bool,
     #[serde(default)]
     pub shield_text: String,
+    // Chrono de débat : temps de parole affiché sur les scènes, gong automatique à la fin
+    #[serde(default)]
+    pub timer_active: bool,
+    #[serde(default)]
+    pub timer_running: bool,
+    #[serde(default)]
+    pub timer_label: String,
+    #[serde(default)]
+    pub timer_total_secs: u32,
+    #[serde(default)]
+    pub timer_end_ts: f64, // fin prévue (epoch s), valable si timer_running
+    #[serde(default)]
+    pub timer_remaining_secs: f64, // temps restant figé, valable en pause
+    #[serde(default)]
+    pub timer_gong_done: bool,
     pub pinned_visible: bool,
     pub pinned_author: String,
     pub pinned_text: String,
@@ -493,6 +508,13 @@ impl Default for FullLiveState {
             trigger_warning_text: "⚠️ TW : Sujet sensible (Inceste & Violences Sexuelles) — Prenez soin de vous".to_string(),
             shield_active: false,
             shield_text: String::new(),
+            timer_active: false,
+            timer_running: false,
+            timer_label: String::new(),
+            timer_total_secs: 0,
+            timer_end_ts: 0.0,
+            timer_remaining_secs: 0.0,
+            timer_gong_done: false,
             pinned_visible: false,
             pinned_author: String::new(),
             pinned_text: String::new(),
@@ -2012,7 +2034,131 @@ impl TelecommandeApp {
         });
     }
 
+    fn timer_start(&mut self, secs: u32) {
+        if let Ok(mut st) = self.state.lock() {
+            st.timer_active = true;
+            st.timer_running = true;
+            st.timer_total_secs = secs;
+            st.timer_end_ts = now_secs() + secs as f64;
+            st.timer_remaining_secs = secs as f64;
+            st.timer_gong_done = false;
+            save_state_json(&st);
+        }
+    }
+
+    fn timer_add(&mut self, secs: f64) {
+        if let Ok(mut st) = self.state.lock() {
+            if !st.timer_active {
+                return;
+            }
+            if st.timer_running {
+                st.timer_end_ts = st.timer_end_ts.max(now_secs()) + secs;
+            } else {
+                st.timer_remaining_secs = st.timer_remaining_secs.max(0.0) + secs;
+            }
+            st.timer_total_secs += secs as u32;
+            st.timer_gong_done = false;
+            save_state_json(&st);
+        }
+    }
+
+    fn timer_pause_toggle(&mut self) {
+        if let Ok(mut st) = self.state.lock() {
+            if !st.timer_active {
+                return;
+            }
+            if st.timer_running {
+                st.timer_remaining_secs = (st.timer_end_ts - now_secs()).max(0.0);
+                st.timer_running = false;
+            } else {
+                st.timer_end_ts = now_secs() + st.timer_remaining_secs;
+                st.timer_running = true;
+            }
+            save_state_json(&st);
+        }
+    }
+
+    fn timer_stop(&mut self) {
+        if let Ok(mut st) = self.state.lock() {
+            st.timer_active = false;
+            st.timer_running = false;
+            save_state_json(&st);
+        }
+    }
+
+    /// Chrono de débat : préréglages 1/3/5 min, +30 s, pause et arrêt, avec le temps restant en direct
+    fn render_debate_timer(&mut self, ui: &mut egui::Ui) {
+        let (active, running, mut label, remaining) = {
+            let st = self.state.lock().unwrap();
+            let rem = if st.timer_running { st.timer_end_ts - now_secs() } else { st.timer_remaining_secs };
+            (st.timer_active, st.timer_running, st.timer_label.clone(), rem.max(0.0))
+        };
+        egui::Frame::group(ui.style())
+            .fill(Color32::from_rgb(20, 22, 30))
+            .stroke(Stroke::new(1.2_f32, Color32::from_rgb(234, 179, 8)))
+            .rounding(Rounding::same(8.0))
+            .inner_margin(egui::Margin::same(10.0))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("⏱️ CHRONO DE DÉBAT").strong().color(Color32::from_rgb(250, 204, 21)));
+                    if active {
+                        let secs = remaining.ceil() as u32;
+                        let col = if secs <= 15 {
+                            Color32::from_rgb(239, 68, 68)
+                        } else if secs <= 30 {
+                            Color32::from_rgb(249, 115, 22)
+                        } else {
+                            Color32::WHITE
+                        };
+                        let txt = if secs == 0 { "⏰ TEMPS ÉCOULÉ".to_string() } else { format!("{:02}:{:02}", secs / 60, secs % 60) };
+                        ui.label(RichText::new(txt).strong().size(16.0).color(col));
+                        if !running {
+                            ui.label(RichText::new("(pause)").size(10.5).color(Color32::GRAY));
+                        }
+                    }
+                });
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Intervenant·e :").size(10.5));
+                    let edit = egui::TextEdit::singleline(&mut label)
+                        .hint_text("ex : @pseudo, Invité·e, Question du chat…")
+                        .desired_width(ui.available_width());
+                    if ui.add(edit).changed() {
+                        if let Ok(mut st) = self.state.lock() {
+                            st.timer_label = label;
+                            save_state_json(&st);
+                        }
+                    }
+                });
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    for (txt, secs) in [("1 min", 60), ("3 min", 180), ("5 min", 300)] {
+                        if ui.button(RichText::new(format!("▶ {}", txt)).strong()).clicked() {
+                            self.timer_start(secs);
+                        }
+                    }
+                    if active {
+                        if ui.button("+30 s").clicked() {
+                            self.timer_add(30.0);
+                        }
+                        if ui.button(if running { "⏸ Pause" } else { "▶ Reprendre" }).clicked() {
+                            self.timer_pause_toggle();
+                        }
+                        if ui.button("⏹ Stop").clicked() {
+                            self.timer_stop();
+                        }
+                    }
+                });
+            });
+        if active && running {
+            ui.ctx().request_repaint_after(Duration::from_millis(250));
+        }
+    }
+
     fn render_tab_regie(&mut self, ui: &mut egui::Ui) {
+                self.render_debate_timer(ui);
+                ui.add_space(8.0);
+
                 // =========================================================
                 // 1. SÉLECTION RAPIDE DE BRANCHE (VSS / POLITIQUE / MUSIQUE)
                 // =========================================================
@@ -5453,6 +5599,32 @@ fn main() -> eframe::Result<()> {
     });
 
     let audio_atomic_clone = Arc::clone(&audio_peak_atomic);
+    // Chrono de débat : gong à 0, puis le widget disparaît 8 s après la fin
+    let state_timer = Arc::clone(&state);
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_millis(200));
+        if let Ok(mut st) = state_timer.lock() {
+            if !st.timer_active || !st.timer_running {
+                continue;
+            }
+            let now = now_secs();
+            if now >= st.timer_end_ts && !st.timer_gong_done {
+                st.timer_gong_done = true;
+                st.jingle_cmd_id += 1;
+                st.jingle_type = "synth".to_string();
+                st.jingle_key = "gong".to_string();
+                st.jingle_file_path = String::new();
+                st.jingle_volume = 80;
+                save_state_json(&st);
+            }
+            if now >= st.timer_end_ts + 8.0 {
+                st.timer_active = false;
+                st.timer_running = false;
+                save_state_json(&st);
+            }
+        }
+    });
+
     let state_audio = Arc::clone(&state);
     thread::spawn(move || {
         let meter = SystemAudioMeter::new();

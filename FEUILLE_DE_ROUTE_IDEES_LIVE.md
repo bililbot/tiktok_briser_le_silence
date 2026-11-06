@@ -15,7 +15,7 @@ Ce document répertorie les concepts et fonctionnalités validés à implémente
 
 ---
 
-### ⏱️ 2. Chronomètre & Gestion du Temps de Parole (Mode Débat)
+### ⏱️ 2. Chronomètre & Gestion du Temps de Parole (Mode Débat) — ✅ FAIT (onglet Régie, voir doc technique)
 * **Objectif** : Rythmer les interventions et éviter les monopoles de parole.
 * **Fonctions** :
   * Présélections en 1 clic : 1 min, 3 min, 5 min.

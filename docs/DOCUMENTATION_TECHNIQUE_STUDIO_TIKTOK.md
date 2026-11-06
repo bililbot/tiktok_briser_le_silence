@@ -60,7 +60,9 @@ graph TD
 | `GET /jingle_stream` | Fichier audio du jingle en cours |
 | `POST /chat_ingest` | Réception des événements du pont chat (`status` / `comment`) |
 
-Les fichiers sont résolus (`resolve_app_file`) dans cet ordre : dossier courant → dossier de l'exe → `C:\laragon\www\tiktok_briser_le_silence` (chemin codé en dur).
+Tous les fichiers (overlays, images, JSON, `run_diag.log`) sont lus et écrits dans le **dossier du studio** (`get_app_dir()`). C'est le premier dossier contenant `stage_solution_b.html` parmi le dossier de l'exe et ses 3 parents, sinon le dossier courant. L'exe fonctionne donc où qu'il soit lancé, y compris depuis `rust_studio/target/release`.
+
+La route `/assets/` refuse les chemins contenant `..`, `\` ou `:`, et sert PNG, JPEG, WEBP et GIF avec le bon type.
 
 ---
 
@@ -150,13 +152,13 @@ Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).
 * Le curseur de la souris n'est pas déplacé.
 
 ### Mode `webview`
-* **Non implémenté.** Il n'existe aucune intégration WebView2 dans le code. Ce mode ne fait qu'incrémenter le compteur interne, sans aucun clic réel.
+* **Non implémenté.** Il n'existe aucune intégration WebView2 dans le code. Dans ce mode, la boucle reste en attente : aucun clic, aucun comptage.
 
 ### Comportement de la boucle
 1. **Intervalle** : `1000 / clicks_per_second` ms, plus `0 à 36 ms` si le jitter est actif.
 2. **Jitter spatial** : ±5 px en X et en Y autour du centre.
 3. **Pause** : 2,4 s tous les 75 tapotements, si `random_pauses` est actif. La pause n'est pas aléatoire.
-4. **Jauge de likes** : tous les 5 tapotements comptés, `like_goal.current_likes` augmente de 5. En mode `webview`, la jauge monte donc sans aucun clic réel.
+4. **Jauge de likes** : tous les 5 tapotements **réellement envoyés**, `like_goal.current_likes` augmente de 5. Si la fenêtre cible est introuvable, rien n'est compté et la boucle réessaie toutes les 500 ms.
 
 > ⚠️ **Risque compte** : l'automatisation de tapotements pour gonfler l'engagement est contraire aux règles de TikTok. Elle peut entraîner une restriction du live ou du compte.
 
@@ -165,17 +167,16 @@ Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).
 ## 💾 7. Persistance & Fichiers de Configuration
 
 ### `live_state.json` et `studio_preferences.json`
-* `save_state_json()` écrit **le même contenu** (l'intégralité de `FullLiveState`) dans **4 fichiers** à chaque changement :
-  * `live_state.json` et `studio_preferences.json` dans le dossier de l'application (`get_app_dir()`) ;
-  * les mêmes dans le dossier courant (d'où les copies dans `rust_studio/` quand on lance depuis ce dossier).
-* Les deux fichiers sont donc des copies identiques. Il n'existe pas de format de préférences séparé.
+* `save_state_json()` dépose l'état complet (`FullLiveState`) en mémoire. Un thread d'arrière-plan l'écrit **au plus une fois par seconde**, et seulement s'il a changé, dans `live_state.json` et `studio_preferences.json` du dossier du studio.
+* À la fermeture de la régie (`on_exit`), la dernière sauvegarde en attente est écrite immédiatement.
+* Les deux fichiers sont des copies identiques. Il n'existe pas de format de préférences séparé.
 * **Au démarrage** (`load_preferences`) : lecture de `studio_preferences.json`, sinon de `live_state.json`. Seuls ces champs sont restaurés :
   * `branch`, `custom_topic`, `custom_sub` ;
   * `tiktok_host_account`, `tiktok_helper_account`, `chat_handle` ;
   * `custom_backgrounds`, `like_goal`, `poll`, `tapper_config`, `article` ;
   * `video_yt_autoplay`, `video_yt_loop`, `video_yt_controls`, `video_yt_mute`.
 
-### Autres fichiers (lus/écrits dans le dossier courant)
+### Autres fichiers (lus/écrits dans le dossier du studio)
 | Fichier | Contenu |
 | :--- | :--- |
 | `bot_config.json` | Filtre anti-insultes, déclencheurs du bot (`emergency`, `pin`, `jingle`) |
@@ -183,7 +184,7 @@ Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).
 | `jingles_library.json` | Bibliothèque de jingles |
 | `video_library.json` | Dossier et liste des vidéos locales |
 
-> ⚠️ Ces fichiers existent en double (racine et `rust_studio/`) avec des contenus différents. L'exe utilise ceux du **dossier courant**, c'est-à-dire la racine quand il est lancé via `Lancer_Studio_TikTok.bat`.
+> ⚠️ Des copies anciennes existent encore dans `rust_studio/`. Elles ne sont plus utilisées : seules celles de la racine comptent.
 
 ---
 

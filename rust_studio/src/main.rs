@@ -589,37 +589,77 @@ pub fn extract_youtube_id(input: &str) -> String {
     s.to_string()
 }
 
+/// Dossier racine du studio (celui qui contient les overlays HTML), détecté une seule fois :
+/// dossier de l'exe, puis ses parents (cas de rust_studio/target/release), puis le dossier courant.
 pub fn get_app_dir() -> std::path::PathBuf {
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            if parent.join("stage_solution_b.html").exists() || parent.join("live_state.json").exists() {
-                return parent.to_path_buf();
+    static APP_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    APP_DIR
+        .get_or_init(|| {
+            if let Ok(exe) = std::env::current_exe() {
+                for dir in exe.ancestors().skip(1).take(4) {
+                    if dir.join("stage_solution_b.html").exists() {
+                        return dir.to_path_buf();
+                    }
+                }
             }
-        }
-    }
-    std::path::PathBuf::from(r"C:\laragon\www\tiktok_briser_le_silence")
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+        })
+        .clone()
 }
 
+/// Chemin d'un fichier relatif au dossier du studio.
+fn app_path(rel: &str) -> PathBuf {
+    get_app_dir().join(rel)
+}
+
+/// Dernier état sérialisé en attente d'écriture sur disque (None = rien de nouveau).
+static PENDING_STATE_JSON: Mutex<Option<String>> = Mutex::new(None);
+
+/// Sauvegarde différée : l'appelant ne fait que déposer le JSON, un thread d'arrière-plan
+/// écrit au plus une fois par seconde et seulement si le contenu a changé.
 fn save_state_json(st: &FullLiveState) {
+    static WRITER: std::sync::Once = std::sync::Once::new();
+    WRITER.call_once(|| {
+        thread::spawn(|| {
+            let mut last_written = String::new();
+            loop {
+                thread::sleep(Duration::from_millis(1000));
+                let pending = PENDING_STATE_JSON.lock().ok().and_then(|mut p| p.take());
+                if let Some(json_str) = pending {
+                    if json_str != last_written {
+                        let _ = std::fs::write(app_path("live_state.json"), &json_str);
+                        let _ = std::fs::write(app_path(PREFERENCES_FILE), &json_str);
+                        last_written = json_str;
+                    }
+                }
+            }
+        });
+    });
     if let Ok(json_str) = serde_json::to_string_pretty(st) {
-        let path = get_app_dir().join("live_state.json");
-        let _ = std::fs::write(&path, &json_str);
-        let _ = std::fs::write("live_state.json", &json_str);
-        let pref_path = get_app_dir().join(PREFERENCES_FILE);
-        let _ = std::fs::write(&pref_path, &json_str);
-        let _ = std::fs::write(PREFERENCES_FILE, &json_str);
+        if let Ok(mut p) = PENDING_STATE_JSON.lock() {
+            *p = Some(json_str);
+        }
+    }
+}
+
+/// Écrit immédiatement la dernière sauvegarde en attente (à appeler à la fermeture).
+fn flush_state_json() {
+    let pending = PENDING_STATE_JSON.lock().ok().and_then(|mut p| p.take());
+    if let Some(json_str) = pending {
+        let _ = std::fs::write(app_path("live_state.json"), &json_str);
+        let _ = std::fs::write(app_path(PREFERENCES_FILE), &json_str);
     }
 }
 
 fn save_emergency_file(list: &[EmergencyNumberItem]) {
     if let Ok(json_str) = serde_json::to_string_pretty(list) {
-        let _ = std::fs::write(EMERGENCY_FILE, json_str);
+        let _ = std::fs::write(app_path(EMERGENCY_FILE), json_str);
     }
 }
 
 fn save_bot_config_file(cfg: &BotConfig) {
     if let Ok(json_str) = serde_json::to_string_pretty(cfg) {
-        let _ = std::fs::write(BOT_CONFIG_FILE, json_str);
+        let _ = std::fs::write(app_path(BOT_CONFIG_FILE), json_str);
     }
 }
 
@@ -647,8 +687,6 @@ struct TelecommandeApp {
     new_trigger_kw: String,
     new_trigger_action: String,
     new_trigger_param: String,
-    manual_pin_author: String,
-    manual_pin_text: String,
     chat_only_questions: bool,
     active_tab: TelecommandeTab,
     mini_mode: bool,
@@ -664,7 +702,7 @@ impl TelecommandeApp {
             audio_peak_atomic,
             last_hotkey_time: Instant::now(),
             library: SavedVideoLibrary {
-                folder_path: r"C:\laragon\www\tiktok_briser_le_silence\videos".to_string(),
+                folder_path: app_path("videos").to_string_lossy().to_string(),
                 files: Vec::new(),
             },
             show_emergency_config_window: false,
@@ -674,8 +712,6 @@ impl TelecommandeApp {
             new_trigger_kw: String::new(),
             new_trigger_action: "emergency".to_string(),
             new_trigger_param: String::new(),
-            manual_pin_author: "Spectateur Live".to_string(),
-            manual_pin_text: String::new(),
             chat_only_questions: false,
             active_tab: TelecommandeTab::Regie,
             mini_mode: false,
@@ -692,12 +728,8 @@ impl TelecommandeApp {
     }
 
     fn load_preferences(&mut self) {
-        let p_path = get_app_dir().join(PREFERENCES_FILE);
-        let fallback_path = get_app_dir().join("live_state.json");
-        let content_opt = std::fs::read_to_string(&p_path).ok()
-            .or_else(|| std::fs::read_to_string(PREFERENCES_FILE).ok())
-            .or_else(|| std::fs::read_to_string(&fallback_path).ok())
-            .or_else(|| std::fs::read_to_string("live_state.json").ok());
+        let content_opt = std::fs::read_to_string(app_path(PREFERENCES_FILE)).ok()
+            .or_else(|| std::fs::read_to_string(app_path("live_state.json")).ok());
 
         if let Some(content) = content_opt {
             if let Ok(saved_st) = serde_json::from_str::<FullLiveState>(&content) {
@@ -725,7 +757,7 @@ impl TelecommandeApp {
     }
 
     fn load_jingles(&mut self) {
-        if let Ok(raw) = std::fs::read_to_string(JINGLES_FILE) {
+        if let Ok(raw) = std::fs::read_to_string(app_path(JINGLES_FILE)) {
             if let Ok(saved) = serde_json::from_str::<Vec<JingleItem>>(&raw) {
                 if !saved.is_empty() {
                     if let Ok(mut st) = self.state.lock() {
@@ -741,20 +773,8 @@ impl TelecommandeApp {
     fn save_jingles(&self) {
         if let Ok(st) = self.state.lock() {
             if let Ok(json_str) = serde_json::to_string_pretty(&st.custom_jingles) {
-                let _ = std::fs::write(JINGLES_FILE, json_str);
+                let _ = std::fs::write(app_path(JINGLES_FILE),json_str);
             }
-        }
-    }
-
-    fn trigger_jingle(&mut self, jingle_name: &str) {
-        if let Ok(mut st) = self.state.lock() {
-            st.jingle_cmd_id += 1;
-            st.jingle_type = "synth".to_string();
-            st.jingle_key = jingle_name.to_string();
-            st.jingle_file_path = String::new();
-            let vol = st.custom_jingles.iter().find(|j| j.id == jingle_name).map(|j| j.volume).unwrap_or(80);
-            st.jingle_volume = vol;
-            save_state_json(&st);
         }
     }
 
@@ -772,7 +792,7 @@ impl TelecommandeApp {
     }
 
     fn load_bot_config(&mut self) {
-        if let Ok(raw) = std::fs::read_to_string(BOT_CONFIG_FILE) {
+        if let Ok(raw) = std::fs::read_to_string(app_path(BOT_CONFIG_FILE)) {
             if let Ok(saved) = serde_json::from_str::<BotConfig>(&raw) {
                 if let Ok(mut st) = self.state.lock() {
                     st.bot_config = saved;
@@ -798,7 +818,7 @@ impl TelecommandeApp {
     }
 
     fn load_emergency_numbers(&mut self) {
-        if let Ok(raw) = std::fs::read_to_string(EMERGENCY_FILE) {
+        if let Ok(raw) = std::fs::read_to_string(app_path(EMERGENCY_FILE)) {
             if let Ok(saved) = serde_json::from_str::<Vec<EmergencyNumberItem>>(&raw) {
                 if !saved.is_empty() {
                     if let Ok(mut st) = self.state.lock() {
@@ -814,7 +834,7 @@ impl TelecommandeApp {
     }
 
     fn load_library(&mut self) {
-        if let Ok(raw) = std::fs::read_to_string(LIBRARY_FILE) {
+        if let Ok(raw) = std::fs::read_to_string(app_path(LIBRARY_FILE)) {
             if let Ok(saved) = serde_json::from_str::<SavedVideoLibrary>(&raw) {
                 self.library = saved;
             }
@@ -824,7 +844,7 @@ impl TelecommandeApp {
 
     fn save_library(&self) {
         if let Ok(json_str) = serde_json::to_string_pretty(&self.library) {
-            let _ = std::fs::write(LIBRARY_FILE, json_str);
+            let _ = std::fs::write(app_path(LIBRARY_FILE),json_str);
         }
     }
 
@@ -4487,7 +4507,7 @@ impl TelecommandeApp {
                         .pick_file() {
                         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("jpg");
                         let dest_name = format!("custom_bg_{}.{}", slot_name, ext);
-                        let dest_full = Path::new(r"C:\laragon\www\tiktok_briser_le_silence\assets").join(&dest_name);
+                        let dest_full = app_path("assets").join(&dest_name);
                         if let Ok(_) = std::fs::copy(&path, &dest_full) {
                             let url_with_v = format!("/assets/{}?v={}", dest_name, now_secs() as u64);
                             if let Ok(mut st) = state.lock() {
@@ -4660,6 +4680,10 @@ impl TelecommandeApp {
 }
 
 impl eframe::App for TelecommandeApp {
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        flush_state_json();
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Appliquer un thème sombre haut contraste Dark Fantasy absolu
         // Empêche tout widget, champ texte ou scrollbox de devenir blanc ou illisible
@@ -4743,7 +4767,7 @@ fn run_http_server(state: Arc<Mutex<FullLiveState>>) {
         match Server::http("127.0.0.1:8765") {
             Ok(s) => {
                 use std::io::Write;
-                if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("C:\\laragon\\www\\tiktok_briser_le_silence\\run_diag.log") {
+                if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(app_path("run_diag.log")) {
                     let _ = writeln!(f, "SERVEUR HTTP: Ecoute active sur 127.0.0.1:8765 (tentative {})", attempt);
                 }
                 server = Some(s);
@@ -4751,7 +4775,7 @@ fn run_http_server(state: Arc<Mutex<FullLiveState>>) {
             }
             Err(e) => {
                 use std::io::Write;
-                if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("C:\\laragon\\www\\tiktok_briser_le_silence\\run_diag.log") {
+                if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(app_path("run_diag.log")) {
                     let _ = writeln!(f, "SERVEUR HTTP tentative {}: erreur bind 8765: {:?}", attempt, e);
                 }
                 thread::sleep(Duration::from_millis(300));
@@ -4777,19 +4801,7 @@ fn run_http_server(state: Arc<Mutex<FullLiveState>>) {
 }
 
 fn resolve_app_file(rel_path: &str) -> Option<Vec<u8>> {
-    if let Ok(b) = std::fs::read(rel_path) {
-        return Some(b);
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            let p = parent.join(rel_path);
-            if let Ok(b) = std::fs::read(p) {
-                return Some(b);
-            }
-        }
-    }
-    let fallback = std::path::Path::new(r"C:\laragon\www\tiktok_briser_le_silence").join(rel_path);
-    std::fs::read(fallback).ok()
+    std::fs::read(app_path(rel_path)).ok()
 }
 
 fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveState>>) {
@@ -5007,9 +5019,16 @@ fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveSt
             );
         } else if url.starts_with("/assets/") {
             let clean_path = url.split('?').next().unwrap_or("").trim_start_matches('/');
-            if let Some(bytes) = resolve_app_file(clean_path) {
-                let mime = if clean_path.ends_with(".png") {
+            // Refuse toute sortie du dossier assets/ (../, chemins Windows absolus ou antislash)
+            let is_safe = !clean_path.contains("..") && !clean_path.contains('\\') && !clean_path.contains(':');
+            if let Some(bytes) = if is_safe { resolve_app_file(clean_path) } else { None } {
+                let lower = clean_path.to_lowercase();
+                let mime = if lower.ends_with(".png") {
                     &b"image/png"[..]
+                } else if lower.ends_with(".webp") {
+                    &b"image/webp"[..]
+                } else if lower.ends_with(".gif") {
+                    &b"image/gif"[..]
                 } else {
                     &b"image/jpeg"[..]
                 };
@@ -5197,12 +5216,14 @@ fn run_background_tapper(state: Arc<Mutex<FullLiveState>>) {
                 }
             };
 
-            if !enabled {
+            // Le mode "webview" n'est pas implémenté : on ne simule rien et on ne compte rien
+            if !enabled || mode != "post_message" {
                 thread::sleep(Duration::from_millis(200));
                 continue;
             }
 
-            if mode == "post_message" {
+            let mut clicked = false;
+            {
                 unsafe {
                     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
                     use windows::Win32::UI::WindowsAndMessaging::{
@@ -5240,10 +5261,15 @@ fn run_background_tapper(state: Arc<Mutex<FullLiveState>>) {
                         thread::sleep(Duration::from_millis(20));
                         let _ = PostMessageW(target_hwnd, WM_LBUTTONUP, WPARAM(0), lparam);
                         click_count += 1;
+                        clicked = true;
                     }
                 }
-            } else {
-                click_count += 1;
+            }
+
+            // Fenêtre cible introuvable : on attend sans toucher à la jauge ni aux pauses
+            if !clicked {
+                thread::sleep(Duration::from_millis(500));
+                continue;
             }
 
             if click_count % 5 == 0 {
@@ -5254,7 +5280,7 @@ fn run_background_tapper(state: Arc<Mutex<FullLiveState>>) {
                 }
             }
 
-            if pauses && click_count > 0 && click_count % 75 == 0 {
+            if pauses && click_count % 75 == 0 {
                 thread::sleep(Duration::from_millis(2400));
             }
 
@@ -5273,12 +5299,12 @@ fn run_background_tapper(state: Arc<Mutex<FullLiveState>>) {
 fn main() -> eframe::Result<()> {
     std::panic::set_hook(Box::new(|info| {
         use std::io::Write;
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("C:\\laragon\\www\\tiktok_briser_le_silence\\run_diag.log") {
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(app_path("run_diag.log")) {
             let _ = writeln!(f, "FATAL PANIC: {:?}", info);
         }
     }));
 
-    let _ = std::fs::write("C:\\laragon\\www\\tiktok_briser_le_silence\\run_diag.log", "ETAPE 1: main commence\n");
+    let _ = std::fs::write(app_path("run_diag.log"), "ETAPE 1: main commence\n");
 
     unsafe {
         use windows::Win32::Foundation::{SetLastError, WIN32_ERROR};
@@ -5294,17 +5320,17 @@ fn main() -> eframe::Result<()> {
             Ok(handle) => {
                 let err = GetLastError();
                 use std::io::Write;
-                if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("C:\\laragon\\www\\tiktok_briser_le_silence\\run_diag.log") {
+                if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(app_path("run_diag.log")) {
                     let _ = writeln!(f, "ETAPE 2: CreateMutexW Ok, err = {:?}", err);
                 }
                 if err == ERROR_ALREADY_EXISTS {
                     if bring_existing_window_to_front() {
-                        if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("C:\\laragon\\www\\tiktok_briser_le_silence\\run_diag.log") {
+                        if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(app_path("run_diag.log")) {
                             let _ = writeln!(f, "ETAPE 2bis: FENETRE VISIBLE EXISTE -> FOCUS ET EXIT");
                         }
                         std::process::exit(0);
                     } else {
-                        if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("C:\\laragon\\www\\tiktok_briser_le_silence\\run_diag.log") {
+                        if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(app_path("run_diag.log")) {
                             let _ = writeln!(f, "ETAPE 2bis: MUTEX EXISTE MAIS PAS DE FENETRE -> ON CONTINUE LE LANCEMENT");
                         }
                     }
@@ -5313,7 +5339,7 @@ fn main() -> eframe::Result<()> {
             }
             Err(e) => {
                 use std::io::Write;
-                if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("C:\\laragon\\www\\tiktok_briser_le_silence\\run_diag.log") {
+                if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(app_path("run_diag.log")) {
                     let _ = writeln!(f, "ETAPE 2 ERR: {:?}", e);
                 }
                 windows::Win32::Foundation::HANDLE::default()
@@ -5322,15 +5348,11 @@ fn main() -> eframe::Result<()> {
     };
 
     use std::io::Write;
-    if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("C:\\laragon\\www\\tiktok_briser_le_silence\\run_diag.log") {
+    if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(app_path("run_diag.log")) {
         let _ = writeln!(f, "ETAPE 3: Mutex passe avec succes");
     }
 
-    let app_dir = get_app_dir();
-    let state_file = app_dir.join("live_state.json");
-    let initial_state = if let Ok(raw) = std::fs::read_to_string(&state_file) {
-        serde_json::from_str::<FullLiveState>(&raw).unwrap_or_default()
-    } else if let Ok(raw) = std::fs::read_to_string("live_state.json") {
+    let initial_state = if let Ok(raw) = std::fs::read_to_string(app_path("live_state.json")) {
         serde_json::from_str::<FullLiveState>(&raw).unwrap_or_default()
     } else {
         FullLiveState::default()
@@ -5420,7 +5442,7 @@ fn main() -> eframe::Result<()> {
         }
     });
 
-    if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("C:\\laragon\\www\\tiktok_briser_le_silence\\run_diag.log") {
+    if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(app_path("run_diag.log")) {
         let _ = writeln!(f, "ETAPE 4: Avant run_native...");
     }
 
@@ -5439,14 +5461,14 @@ fn main() -> eframe::Result<()> {
         "TELECOMMANDE_RUST",
         options,
         Box::new(move |_cc| {
-            if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("C:\\laragon\\www\\tiktok_briser_le_silence\\run_diag.log") {
+            if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(app_path("run_diag.log")) {
                 let _ = writeln!(f, "ETAPE 5: Creation de TelecommandeApp dans run_native...");
             }
             Ok(Box::new(TelecommandeApp::new(state, audio_peak_app)))
         }),
     );
 
-    if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("C:\\laragon\\www\\tiktok_briser_le_silence\\run_diag.log") {
+    if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(app_path("run_diag.log")) {
         let _ = writeln!(f, "ETAPE 6: Fin run_native: {:?}", res);
     }
     res

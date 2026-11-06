@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+// Module partagé avec la télécommande : ses commandes média / raccourcis ne servent qu'à main.rs
+#[allow(dead_code)]
 mod win_audio_media;
 
 use eframe::egui::{self, Color32, FontFamily, FontId, Pos2, Rect, RichText, Rounding, Sense, Stroke, TextureHandle, Vec2};

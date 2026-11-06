@@ -55,6 +55,32 @@ Le plus simple est de créer une source **Capture de fenêtre** pour chacune. Qu
 
 > 💡 La régie doit rester ouverte pendant le live : c'est elle qui fait vivre les scènes. Tu peux la réduire.
 
+### Pas à pas : ajouter (ou réparer) la scène dans TikTok LIVE Studio
+
+**1. Choisis l'orientation dans TikTok.** En haut du panneau des sources, TikTok LIVE Studio a son propre interrupteur **📱 portrait / ▭ paysage**. Chaque orientation a **ses propres sources** :
+- en **📱 portrait**, ajoute la scène **9:16** ;
+- en **▭ paysage**, ajoute la scène **16:9**.
+
+Bascule ensuite la régie sur le même format (bouton 9:16 / 16:9 en haut de la régie), pour que la bonne fenêtre soit ouverte.
+
+**2. Repère une source perdue.** Une source affichée **en rouge** (ici `msedge.exe`) signifie que TikTok **ne trouve plus la fenêtre** : elle a été fermée, réduite, ou son nom a changé (par exemple après une mise à jour de Live Régie). Clique dessus pour la réparer.
+
+<p align="center"><img src="images/tiktok_1_source_perdue.png" width="320" alt="Source msedge.exe en rouge dans TikTok LIVE Studio"></p>
+
+**3. Choisis le programme.** Dans la fenêtre qui s'ouvre, déroule **« Sélectionne un programme »**.
+
+<p align="center"><img src="images/tiktok_2_choisir_programme.png" width="420" alt="Liste « Sélectionne un programme » vide"></p>
+
+**4. Prends la fenêtre qui porte le bon format**, `msedge.exe STUDIO_LIVE_TIKTOK 16:9` (ou `… 9:16` en portrait). L'aperçu doit montrer ta scène. Laisse **« Capturer le curseur »** décoché, puis clique **Appliquer**.
+
+<p align="center"><img src="images/tiktok_3_scene_16_9.png" width="420" alt="Fenêtre STUDIO_LIVE_TIKTOK 16:9 sélectionnée, aperçu de la scène paysage"></p>
+
+> ⚠️ **Ne choisis pas une fenêtre nommée seulement `STUDIO_LIVE_TIKTOK`**, sans « 9:16 » ni « 16:9 ». C'est une ancienne fenêtre de scène, ouverte avant la mise à jour, qui se fermera au prochain changement de format. Ferme-la, ou relance Live Régie.
+>
+> <p align="center"><img src="images/tiktok_4_ancienne_fenetre.png" width="360" alt="Ancienne fenêtre STUDIO_LIVE_TIKTOK sans format"></p>
+
+**5. Garde la fenêtre de scène ouverte**, comme TikTok le rappelle (« Garde la fenêtre du programme ouverte sur ton bureau ») : derrière TikTok LIVE Studio, **jamais réduite**. Si elle est réduite, la régie affiche un bandeau orange **Afficher la scène**.
+
 ---
 
 ## 3. Tour de la régie
@@ -223,6 +249,8 @@ Onglet **🔴 Direct** → bloc **Sons & jingles** → **➕ Ajouter Jingle**, e
 | Problème | Solution |
 | :--- | :--- |
 | Les scènes sont vides ou « introuvables » | Vérifie que Live Régie est ouverte, puis recharge la source dans TikTok LIVE Studio. |
+| La source `msedge.exe` est **en rouge** dans TikTok | TikTok a perdu la fenêtre de scène : clique sur la source, choisis `STUDIO_LIVE_TIKTOK 9:16` ou `16:9`, puis **Appliquer** (voir §2, pas à pas). |
+| Je ne trouve pas ma scène dans la liste des programmes | Elle est sans doute réduite : clique **Afficher la scène** dans la régie. Vérifie aussi que la régie est sur le même format que l'orientation de TikTok (📱 = 9:16, ▭ = 16:9). |
 | Le chat ne se connecte pas | Vérifie le pseudo (sans faute) et que tu es bien en live. « Module TikTokLive non installé » : lance `pip install TikTokLive`. |
 | « Compte introuvable » | Le pseudo est mal orthographié : corrige-le et reconnecte. |
 | Une question s'épingle toute seule | L'option « épingler automatiquement les questions » est activée dans la config du bot. |

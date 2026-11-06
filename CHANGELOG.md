@@ -11,6 +11,13 @@ Chaque version est marquée par un tag Git (`v2.1.0`…), ce qui permet d'y reve
 
 ---
 
+## [2.1.1] — 2026-11-06
+
+### Corrections
+- **Jingle vidéo rejoué et figé au milieu de l'écran** :
+  - à chaque relance de l'appli, ou à chaque rechargement d'une scène, le dernier jingle était rejoué. Les scènes notent maintenant le dernier jingle existant sans le jouer ;
+  - une vidéo de jingle restait affichée si le navigateur refusait sa lecture. Elle est maintenant toujours masquée : à la fin, en cas d'erreur, ou au plus tard à sa durée + 1 s (60 s si la durée est inconnue). Si le son est refusé, elle est lue sans son au lieu de rester bloquée.
+
 ## [2.1.0] — 2026-11-06
 
 Première version sous le nom **Live Régie**, avec son logo.

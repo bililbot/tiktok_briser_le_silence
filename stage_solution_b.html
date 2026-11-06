@@ -1313,7 +1313,7 @@
         let lastVideoPath = "";
         let lastYtId = "";
         let lastVideoCmdId = 0;
-        let lastJingleId = 0;
+        let lastJingleId = null; // null = aucun état reçu encore
 
         // Synthétiseur audio WebAudio pour jouer instantanément les Jingles à zéro latence
         let audioCtx = null;
@@ -1332,11 +1332,28 @@
             const volRatio = Math.max(0, Math.min(1, (vol !== undefined ? vol : 80) / 100));
             if (type === "video") {
                 const v = document.getElementById("jingleVideoOverlay");
+                // La vidéo ne doit jamais rester figée à l'écran : masquée à la fin, en cas d'erreur,
+                // et au plus tard à sa durée + 1 s (60 s si la durée est inconnue)
+                const hide = () => { clearTimeout(v._hideTimer); v.pause(); v.style.display = "none"; };
+                clearTimeout(v._hideTimer);
+                v._hideTimer = setTimeout(hide, 60000);
+                v.onended = hide;
+                v.onerror = hide;
+                v.onloadedmetadata = () => {
+                    if (isFinite(v.duration) && v.duration > 0) {
+                        clearTimeout(v._hideTimer);
+                        v._hideTimer = setTimeout(hide, (v.duration + 1) * 1000);
+                    }
+                };
                 v.src = "/jingle_stream?v=" + Date.now();
+                v.muted = false;
                 v.volume = volRatio;
                 v.style.display = "block";
-                v.play().catch(e => console.log("Video play error", e));
-                v.onended = () => { v.style.display = "none"; };
+                v.play().catch(() => {
+                    // Lecture avec son refusée par le navigateur : on la tente sans son, sinon on masque
+                    v.muted = true;
+                    v.play().catch(hide);
+                });
             } else if (type === "audio") {
                 if (!jingleAudioEl) {
                     jingleAudioEl = new Audio();
@@ -1761,7 +1778,10 @@
                 }
 
                 // 9. JINGLES & EFFETS SONORES DU LIVE (MP3, WAV, VIDÉO OU SYNTH)
-                if (st.jingle_cmd_id && st.jingle_cmd_id > lastJingleId) {
+                if (lastJingleId === null) {
+                    // Premier état reçu : on note le dernier jingle sans le rejouer (relance de l'appli, rechargement OBS)
+                    lastJingleId = st.jingle_cmd_id || 0;
+                } else if (st.jingle_cmd_id && st.jingle_cmd_id > lastJingleId) {
                     lastJingleId = st.jingle_cmd_id;
                     playMediaJingle(st.jingle_type, st.jingle_volume, st.jingle_key);
                 }

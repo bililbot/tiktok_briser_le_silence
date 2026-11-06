@@ -11,6 +11,16 @@ Chaque version est marquée par un tag Git (`v2.1.0`…), ce qui permet d'y reve
 
 ---
 
+## [2.3.0] — 2026-11-06
+
+### Numéros d'urgence
+- **L'encart s'étire maintenant vers la gauche et la droite en 16:9.** Les emplacements « Gauche », « Droite » et « Bandeau » étaient imposés en force, avec une largeur limitée à 380 px, et annulaient le redimensionnement à la souris. Ce ne sont plus que des positions de départ ; un clic sur l'un de ces boutons replace l'encart.
+- **Nouveaux réglages** (volet 🛡️ Sécurité et fenêtre de configuration) :
+  - taille du texte jusqu'à **250 %** (au lieu de 160 %), titre compris ;
+  - nombre de **colonnes** : Auto, 1, 2, 3 ou 4 ;
+  - **descriptions en entier** : retour à la ligne au lieu de « … » (activé par défaut).
+- En 16:9, le nombre de colonnes s'adapte automatiquement à la largeur de l'encart.
+
 ## [2.2.2] — 2026-11-06
 
 ### Corrections

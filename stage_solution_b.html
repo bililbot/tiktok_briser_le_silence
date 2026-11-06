@@ -1466,6 +1466,22 @@
         let emergActiveCount = 0;
         let emergStyle = "grille";
         let lastEmergSig = "";
+        let lastEmergOpts = "";
+
+        // Taille du texte, nombre de colonnes et retour à la ligne des descriptions
+        function applyEmergOptions(w, st) {
+            const scale = (st.emergency_scale_pct || 100) / 100.0;
+            const cols = st.emergency_columns || 0;
+            const wrap = st.emergency_wrap !== false;
+            const opts = scale + "|" + cols + "|" + wrap;
+            if (opts === lastEmergOpts) return;
+            lastEmergOpts = opts;
+            w.style.setProperty("--emerg-scale", scale);
+            w.classList.toggle("emerg-wrap", wrap);
+            document.getElementById("emergGridList").style.gridTemplateColumns =
+                cols > 0 ? "repeat(" + cols + ", minmax(0, 1fr))" : "";
+            w._fitKey = ""; // l'ajustement automatique au cadre est recalculé
+        }
 
         setInterval(() => {
             if (emergStyle === "zoom" && emergActiveCount > 0) {
@@ -1561,6 +1577,7 @@
                 const emergWidget = document.getElementById("emergencyWidget");
                 emergWidget.style.display = st.emergency_visible ? "block" : "none";
                 if (st.emergency_visible) {
+                    applyEmergOptions(emergWidget, st);
                     document.getElementById("emergHeaderTitle").textContent =
                         st.emergency_title || "📞 NUMÉROS D'AIDE & D'ÉCOUTE (GRATUITS & ANONYMES)";
                     emergStyle = st.emergency_style || "grille";
@@ -1926,6 +1943,8 @@
         .draggable-widget.fit-on > .fit-card { height: 100%; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
         .fit-zoom { width: 100%; min-width: 0; }
         #emergencyWidget.fit-on .emerg-grid { grid-template-columns: repeat(auto-fit, minmax(12em, 1fr)); }
+        #emergencyWidget.emerg-wrap .emerg-desc { white-space: normal; overflow: visible; text-overflow: clip; }
+        #emergencyWidget .emerg-header { font-size: calc(clamp(0.70rem, 0.95vh, 0.88rem) * var(--emerg-scale, 1)); }
         #videoWidget.fill-on .video-monitor-box { height: 100%; }
         #videoWidget.fill-on .video-viewport { flex: 1; aspect-ratio: auto; min-height: 0; }
         .video-viewport video { object-fit: var(--video-fit, contain); }

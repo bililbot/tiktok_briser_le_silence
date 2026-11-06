@@ -338,42 +338,13 @@
             width: 94%;
             display: none;
             z-index: 24;
-            transition: left 0.3s ease, top 0.3s ease, width 0.3s ease;
         }
+        /* Emplacements Gauche / Droite / Bandeau : appliqués en position de départ par le script
+           (plus en !important), l'encart reste donc déplaçable et étirable à la souris */
 
-        /* Format Rectangle Vertical (Gauche / Droite) en 16:9 */
-        #emergencyWidget.emerg-pos-left {
-            left: 2% !important;
-            right: auto !important;
-            top: 12% !important;
-            width: 26% !important;
-            min-width: 290px !important;
-            max-width: 380px !important;
-        }
-        #emergencyWidget.emerg-pos-right {
-            left: auto !important;
-            right: 2% !important;
-            top: 12% !important;
-            width: 26% !important;
-            min-width: 290px !important;
-            max-width: 380px !important;
-        }
-        #emergencyWidget.emerg-pos-top {
-            left: 3% !important;
-            right: auto !important;
-            top: 18% !important;
-            width: 94% !important;
-            max-width: none !important;
-        }
-
-        #emergencyWidget.emerg-col-layout .emerg-grid {
-            grid-template-columns: 1fr !important;
-            gap: 5px !important;
-        }
-        #emergencyWidget.emerg-col-layout .emerg-item {
-            padding: 5px 8px !important;
-            min-height: 38px !important;
-        }
+        /* Descriptions affichées en entier (retour à la ligne) au lieu d'être coupées par « … » */
+        #emergencyWidget.emerg-wrap .emerg-desc { white-space: normal; overflow: visible; text-overflow: clip; }
+        #emergencyWidget .emerg-header { font-size: calc(clamp(0.85rem, 1.4vh, 1.25rem) * var(--emerg-scale, 1)); }
 
         .emerg-panel {
             width: 100%;
@@ -403,7 +374,7 @@
 
         .emerg-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(12em, 1fr));
             gap: 4px;
         }
 
@@ -1500,6 +1471,35 @@
         let emergActiveCount = 0;
         let emergStyle = "grille";
         let lastEmergSig = "";
+        let lastEmergPreset = null;
+        let lastEmergOpts = "";
+        // Emplacements de départ en 16:9 : [gauche %, haut %, largeur %]
+        const EMERG_PRESETS = { left: [2, 12, 26], right: [72, 12, 26], top: [3, 18, 94] };
+
+        function applyEmergPreset(w, pos, save) {
+            const p = EMERG_PRESETS[pos] || EMERG_PRESETS.top;
+            w.style.right = "";
+            w.style.left = p[0] + "%";
+            w.style.top = p[1] + "%";
+            w.style.width = p[2] + "%";
+            w.style.height = "";
+            if (save) saveLayout();
+        }
+
+        // Taille du texte, nombre de colonnes et retour à la ligne des descriptions
+        function applyEmergOptions(w, st) {
+            const scale = (st.emergency_scale_pct || 100) / 100.0;
+            const cols = st.emergency_columns || 0;
+            const wrap = st.emergency_wrap !== false;
+            const opts = scale + "|" + cols + "|" + wrap;
+            if (opts === lastEmergOpts) return;
+            lastEmergOpts = opts;
+            w.style.setProperty("--emerg-scale", scale);
+            w.classList.toggle("emerg-wrap", wrap);
+            document.getElementById("emergGridList").style.gridTemplateColumns =
+                cols > 0 ? "repeat(" + cols + ", minmax(0, 1fr))" : "";
+            w._fitKey = ""; // l'ajustement automatique au cadre est recalculé
+        }
 
         setInterval(() => {
             if (emergStyle === "zoom" && emergActiveCount > 0) {
@@ -1595,14 +1595,18 @@
                 emergWidget.style.display = st.emergency_visible ? "block" : "none";
                 if (st.emergency_visible) {
                     const pos169 = st.emergency_pos_16_9 || "top";
-                    emergWidget.classList.remove("emerg-pos-left", "emerg-pos-right", "emerg-pos-top", "emerg-col-layout");
-                    if (pos169 === "left") {
-                        emergWidget.classList.add("emerg-pos-left", "emerg-col-layout");
-                    } else if (pos169 === "right") {
-                        emergWidget.classList.add("emerg-pos-right", "emerg-col-layout");
-                    } else {
-                        emergWidget.classList.add("emerg-pos-top");
+                    const presetId = st.emergency_preset_id || 0;
+                    if (lastEmergPreset === null) {
+                        // Premier état : l'emplacement ne sert que si aucune mise en page n'est enregistrée
+                        lastEmergPreset = presetId;
+                        const regieLayout = (st.stage_layouts || {})[STAGE_FORMAT] || {};
+                        if (!regieLayout.emergencyWidget && !savedLayout.emergencyWidget) applyEmergPreset(emergWidget, pos169, false);
+                    } else if (presetId !== lastEmergPreset) {
+                        // Bouton Gauche / Droite / Bandeau cliqué dans la régie : on replace l'encart
+                        lastEmergPreset = presetId;
+                        applyEmergPreset(emergWidget, pos169, true);
                     }
+                    applyEmergOptions(emergWidget, st);
 
                     document.getElementById("emergHeaderTitle").textContent =
                         st.emergency_title || "📞 NUMÉROS D'AIDE & D'ÉCOUTE (GRATUITS & ANONYMES)";

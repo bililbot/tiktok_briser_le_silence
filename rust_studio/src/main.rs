@@ -503,6 +503,15 @@ pub struct FullLiveState {
     pub emergency_style: String, // "grille" | "zoom"
     pub emergency_scale_pct: u32,
     pub emergency_pos_16_9: String, // "left" | "right" | "top"
+    // Colonnes de la grille des numéros (0 = automatique selon la largeur de l'encart)
+    #[serde(default)]
+    pub emergency_columns: u32,
+    // Descriptions affichées en entier (retour à la ligne) au lieu d'être coupées par « … »
+    #[serde(default = "default_true")]
+    pub emergency_wrap: bool,
+    // Incrémenté à chaque clic sur Gauche / Droite / Bandeau : la scène 16:9 replace alors l'encart
+    #[serde(default)]
+    pub emergency_preset_id: u64,
     pub emergency_numbers: Vec<EmergencyNumberItem>,
     // Bandeau Trigger Warning (Avertissement Sujet Sensible)
     pub trigger_warning_visible: bool,
@@ -642,6 +651,55 @@ fn default_tiktok_host() -> String { "@lebyb".to_string() }
 fn default_tiktok_helper() -> String { "@second_compte".to_string() }
 
 fn default_true() -> bool { true }
+
+/// Réglages d'affichage de l'encart des numéros d'urgence : taille du texte, colonnes,
+/// retour à la ligne et emplacement de départ en 16:9. Renvoie true si un réglage a changé.
+fn emergency_layout_controls(ui: &mut egui::Ui, st: &mut FullLiveState) -> bool {
+    let mut changed = false;
+    let label = |t: &str| RichText::new(t.to_string()).size(11.5).strong().color(Color32::from_rgb(203, 213, 225));
+    ui.horizontal_wrapped(|ui| {
+        ui.label(label("Taille du texte :"));
+        changed |= ui
+            .add(egui::Slider::new(&mut st.emergency_scale_pct, 60..=250).suffix(" %"))
+            .on_hover_text("Taille des numéros et des descriptions. Si l'encart a une hauteur fixée, le texte remplit déjà le cadre.")
+            .changed();
+    });
+    ui.horizontal_wrapped(|ui| {
+        ui.label(label("Colonnes :"));
+        for (n, t) in [(0u32, "Auto"), (1, "1"), (2, "2"), (3, "3"), (4, "4")] {
+            changed |= ui
+                .selectable_value(&mut st.emergency_columns, n, t)
+                .on_hover_text("Auto : autant de colonnes que la largeur de l'encart le permet")
+                .changed();
+        }
+        ui.add_space(8.0);
+        changed |= ui
+            .checkbox(&mut st.emergency_wrap, "Descriptions en entier")
+            .on_hover_text("Retour à la ligne au lieu de couper la description par « … »")
+            .changed();
+    });
+    ui.horizontal_wrapped(|ui| {
+        ui.label(label("Emplacement 16:9 :"));
+        for (v, t) in [("left", "⬅️ Gauche"), ("right", "➡️ Droite"), ("top", "⬆️ Bandeau haut")] {
+            if ui
+                .selectable_label(st.emergency_pos_16_9 == v, t)
+                .on_hover_text("Replace l'encart à cet emplacement, à sa taille de départ")
+                .clicked()
+            {
+                st.emergency_pos_16_9 = v.to_string();
+                st.emergency_preset_id += 1;
+                changed = true;
+            }
+        }
+    });
+    ui.label(
+        RichText::new("💡 Sur la scène, étire l'encart par ses bords gauche, droit ou bas : le texte grandit avec lui.")
+            .size(10.5)
+            .italics()
+            .color(Color32::from_gray(150)),
+    );
+    changed
+}
 
 fn default_video_fit() -> String {
     "contain".to_string()
@@ -997,6 +1055,9 @@ impl Default for FullLiveState {
             emergency_style: "grille".to_string(),
             emergency_scale_pct: 100,
             emergency_pos_16_9: "top".to_string(),
+            emergency_columns: 0,
+            emergency_wrap: true,
+            emergency_preset_id: 0,
             emergency_numbers: default_emergency_numbers(),
             trigger_warning_visible: false,
             trigger_warning_text: "⚠️ TW : Sujet sensible (Inceste & Violences Sexuelles) — Prenez soin de vous".to_string(),
@@ -1721,25 +1782,11 @@ impl TelecommandeApp {
                                 changed = true;
                             }
 
-                            ui.add_space(10.0);
-                            ui.label(RichText::new("Taille Texte :").strong().color(Color32::WHITE));
-                            if ui
-                                .add(egui::Slider::new(&mut st.emergency_scale_pct, 70..=160).suffix("%"))
-                                .changed()
-                            {
-                                changed = true;
-                            }
                         });
 
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Format & Emplacement en 16:9 :").strong().color(Color32::WHITE));
-                            if ui.selectable_value(&mut st.emergency_pos_16_9, "left".to_string(), "⬅️ Rectangle Gauche").clicked()
-                                || ui.selectable_value(&mut st.emergency_pos_16_9, "right".to_string(), "➡️ Rectangle Droite").clicked()
-                                || ui.selectable_value(&mut st.emergency_pos_16_9, "top".to_string(), "⬆️ Bandeau Haut").clicked()
-                            {
-                                changed = true;
-                            }
-                        });
+                        if emergency_layout_controls(ui, &mut st) {
+                            changed = true;
+                        }
 
                         ui.add_space(8.0);
                         ui.separator();
@@ -3628,30 +3675,12 @@ impl TelecommandeApp {
                                 }
                             });
 
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new("Format 16:9 :").size(11.5).strong().color(Color32::from_rgb(203, 213, 225)));
-                                let (mut pos_16_9, mut scale_pct) = {
-                                    let st = self.state.lock().unwrap();
-                                    (st.emergency_pos_16_9.clone(), st.emergency_scale_pct)
-                                };
-                                if ui.selectable_value(&mut pos_16_9, "left".to_string(), "⬅️ Gauche (Rectangle)").clicked()
-                                    || ui.selectable_value(&mut pos_16_9, "right".to_string(), "➡️ Droite (Rectangle)").clicked()
-                                    || ui.selectable_value(&mut pos_16_9, "top".to_string(), "⬆️ Haut (Bandeau)").clicked()
-                                {
-                                    if let Ok(mut st) = self.state.lock() {
-                                        st.emergency_pos_16_9 = pos_16_9;
-                                        save_state_json(&st);
-                                    }
+                            ui.add_space(4.0);
+                            if let Ok(mut st) = self.state.lock() {
+                                if emergency_layout_controls(ui, &mut st) {
+                                    save_state_json(&st);
                                 }
-                                ui.add_space(8.0);
-                                ui.label(RichText::new("Taille :").size(11.5).color(Color32::from_rgb(203, 213, 225)));
-                                if ui.add(egui::Slider::new(&mut scale_pct, 70..=160).suffix("%")).changed() {
-                                    if let Ok(mut st) = self.state.lock() {
-                                        st.emergency_scale_pct = scale_pct;
-                                        save_state_json(&st);
-                                    }
-                                }
-                            });
+                            }
             });
     }
 

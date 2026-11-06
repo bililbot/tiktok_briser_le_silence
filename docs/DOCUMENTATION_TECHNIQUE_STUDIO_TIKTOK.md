@@ -426,3 +426,9 @@ Configuration : `FullLiveState.tapper_config` (struct `TapperConfig`).
   * la grille des urgences passe en `repeat(auto-fit, minmax(12em, 1fr))`.
 * **Vidéo** : avec une hauteur explicite, `#videoWidget.fill-on` fait occuper à la zone vidéo toute la hauteur, sous le bandeau. `object-fit` suit `video_fit` (`contain` ou `cover`). L'iframe YouTube remplit l'encart et cadre elle-même la vidéo.
 * **Réglages** (⚙️ Réglages → « Mise en page des scènes ») : `fit_content_auto`, `video_fit`, réinitialisation.
+* **Encart des numéros d'urgence** (réglages communs à la régie : `emergency_layout_controls()`, appelée dans la fenêtre de configuration et dans le volet Sécurité) :
+  * `emergency_scale_pct` (60 à 250 %) : taille des numéros et des descriptions, et du titre via la variable CSS `--emerg-scale` ;
+  * `emergency_columns` : `0` = automatique (`auto-fit, minmax(12em, 1fr)` en 16:9, 2 colonnes en 9:16), sinon `repeat(n, minmax(0, 1fr))` posé en style inline sur `#emergGridList` ;
+  * `emergency_wrap` (vrai par défaut) : classe `.emerg-wrap`, les descriptions passent à la ligne au lieu d'être coupées par « … » ;
+  * `emergency_pos_16_9` + `emergency_preset_id` : l'emplacement Gauche / Droite / Bandeau n'est plus imposé par des classes CSS en `!important` (qui empêchaient d'étirer l'encart). Il est appliqué en style inline par `applyEmergPreset()` : au premier état si aucune mise en page n'est enregistrée pour l'encart, puis à chaque clic dans la régie (l'identifiant change), suivi de `saveLayout()`.
+  * `applyEmergOptions()` remet à zéro le cache de `fitWidget` quand un de ces réglages change.

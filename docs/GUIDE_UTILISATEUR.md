@@ -239,6 +239,14 @@ Onglet **👥 Public** → **⚙️ Configurer le Bot…** : mots-clés d'urgenc
 ### Les numéros d'urgence
 Onglet **⚙️ Réglages** → volet **🛡️ Sécurité** → **⚙️ Configurer les Numéros d'Urgence…**. Le texte de l'avertissement de sujet sensible se règle au même endroit.
 
+Réglages d'affichage de l'encart, dans le volet **🛡️ Sécurité** :
+- **Taille du texte** (60 à 250 %) : agrandit les numéros, les descriptions et le titre.
+- **Colonnes** : **Auto** met autant de colonnes que la largeur de l'encart le permet ; 1 à 4 impose le nombre.
+- **Descriptions en entier** : la description passe à la ligne au lieu d'être coupée par « … ».
+- **Emplacement 16:9** (Gauche, Droite, Bandeau haut) : replace l'encart à cet endroit, à sa taille de départ. Un nouveau clic sur le même bouton remet l'encart en place.
+
+Sur la scène, **étire l'encart par ses bords gauche, droit ou bas**, ou par le coin. Si l'ajustement automatique est activé (Mise en page des scènes), le texte grandit avec le cadre.
+
 ### Les jingles
 Onglet **🔴 Direct** → bloc **Sons & jingles** → **➕ Ajouter Jingle**, en MP3 ou en vidéo.
 

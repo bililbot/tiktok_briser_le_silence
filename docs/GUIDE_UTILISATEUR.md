@@ -91,14 +91,18 @@ Bascule ensuite la régie sur le même format (bouton 9:16 / 16:9 en haut de la 
 
 ### La barre du haut (toujours visible)
 - **🛡️ BOUCLIER ANTI-RAID (F8)** : le bouton d'urgence en cas d'attaque dans le chat (voir §5).
-- **LIVE RÉGIE v2.2.2** : le nom et la version.
+- **LIVE RÉGIE v2.5.0** : le nom et la version.
 - **Les voyants** à côté :
   - **● Chat** (vert) ou **○ Chat** (gris) indique si le chat est connecté ; le détail s'affiche au survol, et **un clic sur ○ Chat lance la connexion** ;
   - **🆘 N** (rouge) apparaît quand des demandes d'aide sont à traiter ; un clic ouvre le Bilan.
 - **Format** : bascule entre les scènes 9:16 et 16:9.
 - **Mode Mini** : une petite fenêtre avec l'essentiel, à garder dans un coin de l'écran.
 - **Les boutons de branches** (💜 VSS & Inceste, ✊ Politique, 🎸 Musique, ☕ Chill…) changent le thème du live. Les 3 premiers ont les raccourcis **F9, F10, F11**.
-- **[!] Urg.**, **[TW]**, **[VID]**, **Jukebox** : afficher / masquer les numéros d'urgence, l'avertissement de sujet sensible, la vidéo et le lecteur musique.
+- **Les boutons rapides** (violets ou colorés quand c'est affiché) :
+  - **[!] Urg.**, **[TW]**, **[VID]** : afficher / masquer les numéros d'urgence, l'avertissement de sujet sensible et la vidéo ;
+  - **Lecteur** : afficher / masquer le lecteur musique des scènes (pochette, titre, artiste) ;
+  - **Barre** : afficher / masquer la petite barre d'infos tout en bas des scènes ;
+  - **🎵 Jukebox** : ouvre la fenêtre musique séparée.
 
 ### Les onglets
 | Onglet | À quoi il sert |

@@ -124,7 +124,22 @@
     }
     setInterval(render, 120);
 
+    // Lecteur musique et barre du bas : affichés ou masqués depuis la régie (boutons Lecteur / Barre).
+    // Appliqué seulement quand la régie change d'avis, pour laisser marcher le bouton « Barre Bas » de la scène.
+    let lastHudOn = null, lastFooterOn = null;
+    window.applySceneBars = function (st) {
+        const hudOn = st.music_hud_visible !== false;
+        const footerOn = st.footer_visible !== false;
+        const hud = document.getElementById("musicWidget");
+        const footer = document.getElementById("footerWidget");
+        if (hud && hudOn !== lastHudOn) { lastHudOn = hudOn; hud.style.display = hudOn ? "" : "none"; }
+        if (footer && footerOn !== lastFooterOn) { lastFooterOn = footerOn; footer.style.display = footerOn ? "block" : "none"; }
+    };
+    // Après « Réinitialiser positions », le choix de la régie est réappliqué au prochain état
+    window.resetSceneBars = function () { lastHudOn = null; lastFooterOn = null; };
+
     window.updateSubtitles = function (st) {
+        window.applySceneBars(st);
         mode = st.video_display_mode || "video";
         active = !!st.video_active;
         source = st.video_source_type === "youtube" ? "youtube" : "local";

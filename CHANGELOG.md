@@ -11,6 +11,11 @@ Chaque version est marquée par un tag Git (`v2.1.0`…), ce qui permet d'y reve
 
 ---
 
+## [2.5.0] — 2026-11-06
+
+### Nouveautés
+- **Boutons « Lecteur » et « Barre »** dans la rangée des boutons rapides : masquer ou réafficher le lecteur musique (pochette, titre, artiste) et la petite barre d'infos en bas des scènes 9:16 et 16:9. Le choix est gardé d'un live à l'autre. Avant, le lecteur ne pouvait pas être masqué, et la barre seulement depuis la scène, sans que ce soit retenu.
+
 ## [2.4.0] — 2026-11-06
 
 ### Sous-titres des vidéos

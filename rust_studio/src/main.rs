@@ -627,6 +627,11 @@ pub struct FullLiveState {
     pub video_yt_controls: bool,
     #[serde(default)]
     pub video_yt_mute: bool,
+    // Lecteur musique (pochette, titre, artiste) et petite barre d'infos tout en bas des scènes
+    #[serde(default = "default_true")]
+    pub music_hud_visible: bool,
+    #[serde(default = "default_true")]
+    pub footer_visible: bool,
     // Sous-titres des vidéos : "video" (vidéo seule) | "video_subs" (vidéo + sous-titres) | "audio_subs" (son + sous-titres, image cachée)
     #[serde(default = "default_video_display_mode")]
     pub video_display_mode: String,
@@ -1381,6 +1386,8 @@ impl Default for FullLiveState {
             video_yt_loop: false,
             video_yt_controls: true,
             video_yt_mute: false,
+            music_hud_visible: true,
+            footer_visible: true,
             video_display_mode: default_video_display_mode(),
             subtitles_lang: default_subtitles_lang(),
             subtitles_scale_pct: 100,
@@ -2563,10 +2570,10 @@ impl TelecommandeApp {
 
         ui.add_space(3.0);
 
-        // Ligne 3: Toggles d'Actions Rapides (Urgences, TW, Vidéo, Musique Box)
+        // Ligne 3: Toggles d'Actions Rapides (Urgences, TW, Vidéo, Lecteur musique, Barre du bas, Musique Box)
         ui.horizontal(|ui| {
             let total_w = ui.available_width();
-            let btn_w = ((total_w - ui.spacing().item_spacing.x * 3.0) / 4.0).floor();
+            let btn_w = ((total_w - ui.spacing().item_spacing.x * 5.0) / 6.0).floor();
 
             // 🚨 Urgences
             let (emerg_txt, emerg_bg) = if emerg_vis {
@@ -2642,6 +2649,32 @@ impl TelecommandeApp {
                     st.video_active = !st.video_active;
                     st.branch_timestamp = now_secs();
                     save_state_json(&st);
+                }
+            }
+
+            // Lecteur musique et barre du bas des scènes
+            let (hud_vis, footer_vis) = self
+                .state
+                .lock()
+                .map(|st| (st.music_hud_visible, st.footer_visible))
+                .unwrap_or((true, true));
+            for (is_footer, on, label_on, label_off, tip) in [
+                (false, hud_vis, "Lecteur ON", "Lecteur OFF", "Affiche ou masque le lecteur musique (pochette, titre, artiste) sur les scènes"),
+                (true, footer_vis, "Barre ON", "Barre OFF", "Affiche ou masque la petite barre d'infos tout en bas des scènes"),
+            ] {
+                let btn = egui::Button::new(
+                    RichText::new(if on { label_on } else { label_off }).strong().size(10.5).color(Color32::WHITE),
+                )
+                .fill(if on { Color32::from_rgb(124, 58, 237) } else { Color32::from_rgb(38, 42, 54) });
+                if ui.add_sized([btn_w, 24.0], btn).on_hover_text(tip).clicked() {
+                    if let Ok(mut st) = self.state.lock() {
+                        if is_footer {
+                            st.footer_visible = !st.footer_visible;
+                        } else {
+                            st.music_hud_visible = !st.music_hud_visible;
+                        }
+                        save_state_json(&st);
+                    }
                 }
             }
 

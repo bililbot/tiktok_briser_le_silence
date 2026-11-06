@@ -1146,6 +1146,7 @@
             const f = document.getElementById("footerWidget");
             f.style.left = "3%"; f.style.top = "auto"; f.style.bottom = "14px"; f.style.width = "94%";
             f.style.display = "block";
+            if (window.resetSceneBars) resetSceneBars();
             const tw = document.getElementById("twWidget");
             tw.style.left = "3%"; tw.style.top = "2%"; tw.style.width = "94%";
             const pi = document.getElementById("pinnedCommentWidget");

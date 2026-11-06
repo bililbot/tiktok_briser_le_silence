@@ -185,7 +185,8 @@ Le lecteur YouTube des overlays (`stage_solution_b.html` et `stage_16_9.html`) :
   * injecte le style de `#subtitleWidget` (déplaçable et étirable, enregistré dans la mise en page) ; la taille du texte suit la largeur de l'encart (`3.4cqw × --subs-scale`) ;
   * position de lecture : `localVideoPlayer.currentTime`, ou pour YouTube les messages `infoDelivery` (`currentTime`, `playerState`) de l'iframe, obtenus en lui envoyant `{"event":"listening"}` (renvoyé tant qu'aucun message n'arrive depuis 3 s) et extrapolés entre deux messages ;
   * affichage toutes les 120 ms, recherche dichotomique de la ligne ; entre deux phrases l'encart s'efface (`.idle`), sauf en mode `audio_subs` où « 🔊 En écoute : titre » reste affiché ;
-  * expose `ytCommand()`, `ytIsPlaying()`, `ytCurrentTime()` aux scènes.
+  * expose `ytCommand()`, `ytIsPlaying()`, `ytCurrentTime()` aux scènes ;
+  * gère aussi, via `applySceneBars()`, l'affichage du lecteur musique (`#musicWidget`, état `music_hud_visible`) et de la barre du bas (`#footerWidget`, `footer_visible`), boutons « Lecteur » et « Barre » de la régie (2.5.0). Ils ne sont réappliqués que quand la régie change d'avis (ou après `resetWidgetPositions()` via `resetSceneBars()`), pour laisser marcher le bouton « Barre Bas » de la scène.
 
 ---
 

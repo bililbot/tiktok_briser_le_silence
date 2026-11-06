@@ -2012,7 +2012,7 @@ impl TelecommandeApp {
         // Ligne 1: Titre compact + Switch Scène 9:16/16:9 + Bouton Mode Mini
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new("🎛️ STUDIO LIVE")
+                RichText::new(concat!("🎛️ STUDIO LIVE v", env!("CARGO_PKG_VERSION")))
                     .strong()
                     .size(13.0)
                     .color(Color32::WHITE),
@@ -2212,43 +2212,38 @@ impl TelecommandeApp {
     fn render_tab_selector(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
             let total_w = ui.available_width();
-            let tab_w = (total_w - 10.0) / 3.0;
 
-            let row1 = [
-                (TelecommandeTab::Regie, "[ Régie ]", Color32::from_rgb(147, 51, 234)),
-                (TelecommandeTab::Youtube, "[ YouTube ]", Color32::from_rgb(239, 68, 68)),
-                (TelecommandeTab::Articles, "[ Presse ]", Color32::from_rgb(234, 88, 12)),
+            // « Bannières » (annonce libre, bandeau TW, numéros d'urgence) n'était plus accessible : rétabli
+            let rows: [&[(TelecommandeTab, &str, Color32)]; 2] = [
+                &[
+                    (TelecommandeTab::Regie, "[ Régie ]", Color32::from_rgb(147, 51, 234)),
+                    (TelecommandeTab::Youtube, "[ YouTube ]", Color32::from_rgb(239, 68, 68)),
+                    (TelecommandeTab::Articles, "[ Presse ]", Color32::from_rgb(234, 88, 12)),
+                    (TelecommandeTab::Bannieres, "🪧 Bannières", Color32::from_rgb(219, 39, 119)),
+                ],
+                &[
+                    (TelecommandeTab::Sondages, "🗳️ Sondages & Chat", Color32::from_rgb(59, 130, 246)),
+                    (TelecommandeTab::Soundboard, "🎵 Sons", Color32::from_rgb(16, 185, 129)),
+                    (TelecommandeTab::Preferences, "[ Préférences ]", Color32::from_rgb(107, 114, 128)),
+                ],
             ];
 
-            let row2 = [
-                (TelecommandeTab::Sondages, "🗳️ Sondages", Color32::from_rgb(59, 130, 246)),
-                (TelecommandeTab::Soundboard, "🎵 Sons", Color32::from_rgb(16, 185, 129)),
-                (TelecommandeTab::Preferences, "[ Préférences ]", Color32::from_rgb(107, 114, 128)),
-            ];
-
-            ui.horizontal(|ui| {
-                for (tab, label, active_col) in row1 {
-                    let is_sel = self.active_tab == tab;
-                    let bg = if is_sel { active_col } else { Color32::from_rgb(28, 30, 38) };
-                    let txt_col = if is_sel { Color32::WHITE } else { Color32::from_rgb(156, 163, 175) };
-                    if ui.add_sized([tab_w, 28.0], egui::Button::new(RichText::new(label).strong().size(12.0).color(txt_col)).fill(bg)).clicked() {
-                        self.active_tab = tab;
-                    }
+            for (row_index, row) in rows.iter().enumerate() {
+                if row_index > 0 {
+                    ui.add_space(2.0);
                 }
-            });
-
-            ui.add_space(2.0);
-
-            ui.horizontal(|ui| {
-                for (tab, label, active_col) in row2 {
-                    let is_sel = self.active_tab == tab;
-                    let bg = if is_sel { active_col } else { Color32::from_rgb(28, 30, 38) };
-                    let txt_col = if is_sel { Color32::WHITE } else { Color32::from_rgb(156, 163, 175) };
-                    if ui.add_sized([tab_w, 28.0], egui::Button::new(RichText::new(label).strong().size(12.0).color(txt_col)).fill(bg)).clicked() {
-                        self.active_tab = tab;
+                let tab_w = (total_w - 5.0 * row.len() as f32) / row.len() as f32;
+                ui.horizontal(|ui| {
+                    for (tab, label, active_col) in row.iter() {
+                        let is_sel = self.active_tab == *tab;
+                        let bg = if is_sel { *active_col } else { Color32::from_rgb(28, 30, 38) };
+                        let txt_col = if is_sel { Color32::WHITE } else { Color32::from_rgb(156, 163, 175) };
+                        if ui.add_sized([tab_w, 28.0], egui::Button::new(RichText::new(*label).strong().size(12.0).color(txt_col)).fill(bg)).clicked() {
+                            self.active_tab = *tab;
+                        }
                     }
-                }
-            });
+                });
+            }
         });
     }
 

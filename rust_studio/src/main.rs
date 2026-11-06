@@ -2300,7 +2300,8 @@ impl TelecommandeApp {
                 let btn_w = (ui.available_width() - 8.0) / 3.0;
                 for b in row {
                     let col = hex_color(&b.color);
-                    let short: String = b.label.chars().take(10).collect();
+                    // Emoji + premier mot (« 💜 VSS », « ✊ Politique ») : lisible dans la petite fenêtre
+                    let short: String = b.label.split_whitespace().take(2).collect::<Vec<_>>().join(" ");
                     let btn = egui::Button::new(RichText::new(short).strong().size(11.5).color(Color32::WHITE))
                         .fill(if b.id == current_branch { col } else { col.gamma_multiply(0.28) });
                     if ui.add_sized([btn_w, 30.0], btn).on_hover_text(&b.label).clicked() {

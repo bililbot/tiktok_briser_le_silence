@@ -189,6 +189,22 @@ Ils marchent même quand la régie est réduite ou n'a pas le focus.
 
 ---
 
+## 🆘 File Privée des Demandes d'Aide
+
+* **Détection** : tout commentaire contenant un mot-clé d'un déclencheur `emergency` actif (`bot_config.json`, par exemple « aide, urgence, 119, 3919 ») est ajouté à `help_alerts` avec l'heure locale, le pseudo, le @handle et le texte.
+* **Avant le filtre anti-insultes** : un message d'aide qui contient une insulte est masqué du chat, mais il est quand même noté, et il affiche quand même les numéros d'urgence.
+* **Régie** : bloc repliable « 🆘 DEMANDES D'AIDE — N à traiter » dans l'onglet **[ Régie ]**.
+  * Il s'ouvre automatiquement s'il reste des demandes à traiter.
+  * Pour chaque demande : un bouton 📋 pour copier le pseudo et un bouton ✅ Traité / ↩ À traiter.
+  * Un bouton efface les demandes traitées.
+* **Confidentialité** :
+  * la file n'est **jamais** affichée sur les scènes ;
+  * elle est **retirée de la réponse `/state`**, qui envoie `Access-Control-Allow-Origin: *` et serait sinon lisible par n'importe quelle page web ouverte sur la machine ;
+  * elle n'est conservée que dans `live_state.json` et `studio_preferences.json`, deux fichiers exclus de Git.
+* **Limite** : les 200 dernières demandes.
+
+---
+
 ## 💜 Remerciements Automatiques (Cadeaux, Partages, Follows)
 
 * **Pont chat** (`tiktok_chat_bridge.py`, TikTokLive 7.x) : il envoie à `POST /chat_ingest` des événements :

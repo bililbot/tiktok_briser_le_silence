@@ -146,6 +146,25 @@ pub fn default_emergency_numbers() -> Vec<EmergencyNumberItem> {
     ]
 }
 
+/// Message du chat contenant un mot-clé d'aide, à traiter en privé après le live
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct HelpAlert {
+    pub id: u64,
+    pub ts: f64,
+    #[serde(default)]
+    pub time_label: String, // heure locale "HH:MM" à la réception
+    pub author: String,
+    pub handle: String,
+    pub text: String,
+    pub handled: bool,
+}
+
+/// Heure locale Windows au format "HH:MM" (gère l'heure d'été)
+fn local_time_label() -> String {
+    let t = unsafe { windows::Win32::System::SystemInformation::GetLocalTime() };
+    format!("{:02}:{:02}", t.wHour, t.wMinute)
+}
+
 /// Remerciement à afficher sur les scènes (cadeau, partage ou follow reçu via le pont chat)
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct ThanksItem {
@@ -411,6 +430,11 @@ pub struct FullLiveState {
     #[serde(default)]
     pub timer_gong_done: bool,
     // Remerciements automatiques : les scènes affichent les éléments dont l'id est plus récent que le dernier vu
+    // File privée des demandes d'aide (jamais affichée sur les scènes) pour recontacter les personnes après le live
+    #[serde(default)]
+    pub help_alert_seq: u64,
+    #[serde(default)]
+    pub help_alerts: Vec<HelpAlert>,
     #[serde(default = "default_true")]
     pub thanks_enabled: bool,
     #[serde(default)]
@@ -622,6 +646,8 @@ impl Default for FullLiveState {
             timer_end_ts: 0.0,
             timer_remaining_secs: 0.0,
             timer_gong_done: false,
+            help_alert_seq: 0,
+            help_alerts: Vec::new(),
             thanks_enabled: true,
             thanks_seq: 0,
             thanks_queue: Vec::new(),
@@ -2241,6 +2267,73 @@ impl TelecommandeApp {
         }
     }
 
+    /// File privée des demandes d'aide : pseudo, heure, message, copie du pseudo et marquage « traité »
+    fn render_help_alerts(&mut self, ui: &mut egui::Ui) {
+        let alerts = self.state.lock().map(|st| st.help_alerts.clone()).unwrap_or_default();
+        let pending = alerts.iter().filter(|a| !a.handled).count();
+        let title = format!("🆘 DEMANDES D'AIDE — {} à traiter / {} au total", pending, alerts.len());
+        let title_col = if pending > 0 { Color32::from_rgb(248, 113, 113) } else { Color32::from_rgb(134, 239, 172) };
+        egui::Frame::group(ui.style())
+            .fill(Color32::from_rgb(20, 22, 30))
+            .stroke(Stroke::new(1.2_f32, Color32::from_rgb(239, 68, 68)))
+            .rounding(Rounding::same(8.0))
+            .inner_margin(egui::Margin::same(10.0))
+            .show(ui, |ui| {
+                egui::CollapsingHeader::new(RichText::new(title).strong().color(title_col))
+                    .id_salt("help_alerts_panel")
+                    .default_open(pending > 0)
+                    .show(ui, |ui| {
+                        ui.label(
+                            RichText::new("Privé : jamais affiché sur les scènes. Pour recontacter les personnes après le live.")
+                                .size(10.0)
+                                .color(Color32::GRAY),
+                        );
+                        if alerts.is_empty() {
+                            ui.label(RichText::new("Aucune demande pour l'instant.").italics().size(10.5));
+                            return;
+                        }
+                        let mut toggle_id: Option<u64> = None;
+                        egui::ScrollArea::vertical().max_height(220.0).id_salt("help_alerts_scroll").show(ui, |ui| {
+                            for a in alerts.iter().rev() {
+                                ui.horizontal_wrapped(|ui| {
+                                    let name_col = if a.handled { Color32::GRAY } else { Color32::WHITE };
+                                    ui.label(RichText::new(&a.time_label).size(10.0).color(Color32::GRAY));
+                                    ui.label(RichText::new(format!("{} {}", a.author, a.handle)).strong().color(name_col));
+                                    if ui.small_button("📋").on_hover_text("Copier le pseudo").clicked() {
+                                        let who = if a.handle.is_empty() { a.author.clone() } else { a.handle.clone() };
+                                        ui.ctx().copy_text(who);
+                                    }
+                                    let lbl = if a.handled { "↩ À traiter" } else { "✅ Traité" };
+                                    if ui.small_button(lbl).clicked() {
+                                        toggle_id = Some(a.id);
+                                    }
+                                });
+                                let txt_col = if a.handled { Color32::DARK_GRAY } else { Color32::from_rgb(254, 202, 202) };
+                                ui.label(RichText::new(&a.text).size(11.0).color(txt_col));
+                                ui.separator();
+                            }
+                        });
+                        let mut clear_handled = false;
+                        if ui.button("🗑 Effacer les demandes traitées").clicked() {
+                            clear_handled = true;
+                        }
+                        if toggle_id.is_some() || clear_handled {
+                            if let Ok(mut st) = self.state.lock() {
+                                if let Some(id) = toggle_id {
+                                    if let Some(a) = st.help_alerts.iter_mut().find(|a| a.id == id) {
+                                        a.handled = !a.handled;
+                                    }
+                                }
+                                if clear_handled {
+                                    st.help_alerts.retain(|a| !a.handled);
+                                }
+                                save_state_json(&st);
+                            }
+                        }
+                    });
+            });
+    }
+
     /// Remerciements auto (cadeaux, partages, follows) : activation + bouton d'aperçu sur les scènes
     fn render_thanks_controls(&mut self, ui: &mut egui::Ui) {
         let mut enabled = self.state.lock().map(|st| st.thanks_enabled).unwrap_or(true);
@@ -2272,6 +2365,8 @@ impl TelecommandeApp {
                 self.render_debate_timer(ui);
                 ui.add_space(8.0);
                 self.render_thanks_controls(ui);
+                ui.add_space(8.0);
+                self.render_help_alerts(ui);
                 ui.add_space(8.0);
 
                 // =========================================================
@@ -5132,6 +5227,34 @@ fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveSt
 
                         let lower = text.to_lowercase();
 
+                        // 0. Demande d'aide (mots-clés des déclencheurs "emergency") : toujours notée dans la file
+                        //    privée de la régie, AVANT le filtre anti-insultes (une personne en détresse peut jurer)
+                        let asks_help = st.bot_config.triggers.iter().any(|trig| {
+                            trig.enabled
+                                && trig.action == "emergency"
+                                && trig
+                                    .keywords
+                                    .split(',')
+                                    .map(|w| w.trim().to_lowercase())
+                                    .any(|kw| !kw.is_empty() && lower.contains(&kw))
+                        });
+                        if asks_help {
+                            st.help_alert_seq += 1;
+                            let id = st.help_alert_seq;
+                            st.help_alerts.push(HelpAlert {
+                                id,
+                                ts: now_secs(),
+                                time_label: local_time_label(),
+                                author: author.clone(),
+                                handle: handle.clone(),
+                                text: text.clone(),
+                                handled: false,
+                            });
+                            if st.help_alerts.len() > 200 {
+                                st.help_alerts.remove(0);
+                            }
+                        }
+
                         // 1. Filtre anti-insultes
                         if st.bot_config.filter_blacklist {
                             let blacklist: Vec<&str> = st
@@ -5142,6 +5265,11 @@ fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveSt
                                 .filter(|w| !w.is_empty())
                                 .collect();
                             if blacklist.iter().any(|bad| lower.contains(bad)) {
+                                if asks_help {
+                                    // Message masqué du chat, mais la demande d'aide reste prise en compte
+                                    st.emergency_visible = true;
+                                    save_state_json(&st);
+                                }
                                 // Message filtré silencieusement, non affiché
                                 let _ = req.respond(Response::from_string("filtered").with_header(cors).with_header(conn_close));
                                 return;
@@ -5270,8 +5398,12 @@ fn handle_http_request(mut req: tiny_http::Request, state: &Arc<Mutex<FullLiveSt
 
         if url.starts_with("/state") {
             let json_bytes = {
-                let st = state.lock().unwrap();
-                serde_json::to_vec(&*st).unwrap_or_default()
+                let mut st = state.lock().unwrap();
+                // La file des demandes d'aide reste privée à la régie : retirée le temps de sérialiser
+                let alerts = std::mem::take(&mut st.help_alerts);
+                let bytes = serde_json::to_vec(&*st).unwrap_or_default();
+                st.help_alerts = alerts;
+                bytes
             };
             let ct = Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap();
             let _ = req.respond(
